@@ -1,61 +1,58 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using PatientApi.Data;
-using PatientApi.Services; // IOpenAIChatService, OpenAIChatService
+using PatientApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// -------------------------
-// 1) Services
-// -------------------------
+// Bind Kestrel to PORT (Render sets this)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
 
+// Controllers + Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ---- Database (SQLite) ----
-// Local default uses appsettings.json ConnectionStrings:DefaultConnection = "Data Source=app.db"
-// On Render set env var: ConnectionStrings__DefaultConnection=Data Source=/data/patient.db
-var connString = builder.Configuration.GetConnectionString("DefaultConnection")
-?? "Data Source=app.db";
-builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlite(connString));
-
-// ---- OpenAI service ----
-// Your OpenAIChatService should accept (HttpClient http, IConfiguration cfg)
-// and read the key like: var apiKey = cfg["OPENAI_API_KEY"];
-builder.Services.AddHttpClient<IOpenAIChatService, OpenAIChatService>();
-
-// ---- CORS (Frontend origins) ----
-const string AllowClient = "AllowClient";
+// CORS (allow your frontend origin; default allows local dev)
+var frontendOrigin = Environment.GetEnvironmentVariable("FRONTEND_ORIGIN")
+?? "http://localhost:5173";
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(AllowClient, policy =>
-    {
-        policy.WithOrigins(
-        "http://localhost:5173", // Vite dev
-        "https://patient-ui.onrender.com" // TODO: replace with your actual Render static site URL
-        )
-        .AllowAnyHeader()
-        .AllowAnyMethod();
-        // If you ever need cookies/auth from UI -> API, add: .AllowCredentials();
-    });
+    options.AddPolicy("_allowClient", policy =>
+    policy.WithOrigins(frontendOrigin)
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .AllowCredentials());
 });
 
-// -------------------------
-// 2) Pipeline
-// -------------------------
+// SQLite – use env ConnectionStrings__Default (Render) or fallback
+var conn = builder.Configuration.GetConnectionString("Default")
+?? "Data Source=patient.db";
+builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlite(conn));
+
+// OpenAI service (expects OPENAI_API_KEY in env)
+builder.Services.AddHttpClient<IOpenAIChatService, OpenAIChatService>();
 
 var app = builder.Build();
 
-// Keep Swagger available in all envs (handy on Render)
+// Swagger (enabled in prod too)
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// If Render has HTTPS, this is fine; local Kestrel also supports it by default
-app.UseHttpsRedirection();
+// Static files / SPA (React build is copied to wwwroot by Dockerfile)
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
-// CORS must be before MapControllers
-app.UseCors(AllowClient);
+app.UseHttpsRedirection();
+app.UseCors("_allowClient");
+app.UseAuthorization();
 
 app.MapControllers();
+
+// Any unknown route -> React index.html
+app.MapFallbackToFile("index.html");
 
 app.Run();

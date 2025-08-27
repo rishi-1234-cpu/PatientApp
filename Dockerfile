@@ -1,31 +1,36 @@
-# ---------------- UI build (Node) ----------------
-FROM node:20-alpine AS ui-build
+# ---------- Build the React UI ----------
+FROM node:18-alpine AS ui-build
 WORKDIR /ui
-
-# Copy manifests
 COPY patient-ui/package*.json ./
-
-# If package-lock.json exists -> npm ci, otherwise fallback to npm install
-RUN sh -c "if [ -f package-lock.json ]; then npm ci; else npm install; fi"
-
-# Copy the rest and build
+RUN npm ci
 COPY patient-ui/ ./
 RUN npm run build
 
-# ---------------- API build (dotnet) ----------------
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-build
+# ---------- Build & publish the .NET API ----------
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY . ./
-RUN dotnet restore
-RUN dotnet publish -c Release -o /app/publish
 
-# Copy UI to wwwroot
-RUN mkdir -p /app/publish/wwwroot
-COPY --from=ui-build /ui/dist/ /app/publish/wwwroot/
+# Copy solution and project files first for better layer caching
+COPY *.sln ./
+COPY PatientApi/PatientApi.csproj PatientApi/
+RUN dotnet restore PatientApi/PatientApi.csproj
 
-# ---------------- Runtime ----------------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+# Copy the rest and publish
+COPY . .
+RUN dotnet publish PatientApi/PatientApi.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+# ---------- Runtime image ----------
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
+
+# App
+COPY --from=build /app/publish .
+# React build -> wwwroot (served by Program.cs)
+RUN mkdir -p /app/wwwroot
+COPY --from=ui-build /ui/dist/ ./wwwroot/
+
+# Render provides PORT; bind Kestrel to it
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
-COPY --from=dotnet-build /app/publish ./
+
+# Start the API
 CMD ["dotnet", "PatientApi.dll"]
