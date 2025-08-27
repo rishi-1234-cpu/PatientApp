@@ -1,27 +1,38 @@
-# ---------- Build the React UI (Vite) ----------
-FROM node:20-alpine AS ui
+# ---------------- UI build (Node) ----------------
+FROM node:20-alpine AS ui-build
 WORKDIR /ui
+
+# Install deps first for better cache
 COPY patient-ui/package*.json ./
 RUN npm ci
+
+# Copy the rest of the UI and build
 COPY patient-ui/ ./
-RUN npm run build # outputs to /ui/dist
+RUN npm run build
 
-# ---------- Build the .NET API ----------
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# ---------------- API build (dotnet) ----------------
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-build
 WORKDIR /src
-COPY . .
-RUN dotnet restore
-RUN dotnet publish -c Release -o /out
 
-# ---------- Runtime ----------
+# Copy everything (API + ui folder etc.)
+COPY . ./
+
+# Restore & publish the API
+RUN dotnet restore
+RUN dotnet publish -c Release -o /app/publish
+
+# Put the compiled UI into wwwroot of the published API
+RUN mkdir -p /app/publish/wwwroot
+COPY --from=ui-build /ui/dist/ /app/publish/wwwroot/
+
+# ---------------- Runtime ----------------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
-# API
-COPY --from=build /out .
-# UI -> serve from wwwroot
-COPY --from=ui /ui/dist ./wwwroot
 
-# Render provides PORT; bind Kestrel to it
+# Render sets PORT; bind Kestrel to it
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
+
+# Copy the published app
+COPY --from=dotnet-build /app/publish ./
 
 CMD ["dotnet", "PatientApi.dll"]
