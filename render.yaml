@@ -1,21 +1,13 @@
 services:
   - type: web
     name: patient-api
-    env: docker  # using Docker since you have a Dockerfile
+    env: docker
     branch: main
     dockerfilePath: ./Dockerfile
-    autoDeploy: true
+    plan: free
 
     envVars:
       - key: ASPNETCORE_URLS
         value: http://0.0.0.0:${PORT}
       - key: ConnectionStrings__Default
-        value: Data Source=/data/patient.db
-      # Uncomment and set in Render dashboard if using OpenAI:
-      # - key: OPENAI_API_KEY
-      #   sync: false
-
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
+        value: Data Source=/tmp/patient.db
