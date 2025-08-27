@@ -1,36 +1,37 @@
-# ---------- Build the React UI ----------
-FROM node:18-alpine AS ui-build
+# ---------- Build React UI ----------
+FROM node:20-alpine AS ui-build
 WORKDIR /ui
-COPY patient-ui/package*.json ./
-RUN npm ci
-COPY patient-ui/ ./
+
+# copy only package files first for better caching
+COPY PatientApi/patient-ui/package*.json ./
+RUN npm ci --no-audit --no-fund
+
+# now copy the rest of the UI and build
+COPY PatientApi/patient-ui/ .
 RUN npm run build
 
-# ---------- Build & publish the .NET API ----------
+# ---------- Build & publish .NET API ----------
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy solution and project files first for better layer caching
-COPY *.sln ./
-COPY PatientApi/PatientApi.csproj PatientApi/
+# copy the API project and restore/publish
+COPY PatientApi/ PatientApi/
 RUN dotnet restore PatientApi/PatientApi.csproj
+RUN dotnet publish PatientApi/PatientApi.csproj -c Release -o /app/publish
 
-# Copy the rest and publish
-COPY . .
-RUN dotnet publish PatientApi/PatientApi.csproj -c Release -o /app/publish /p:UseAppHost=false
-
-# ---------- Runtime image ----------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+# ---------- Runtime ----------
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
-# App
+# publish output
 COPY --from=build /app/publish .
-# React build -> wwwroot (served by Program.cs)
-RUN mkdir -p /app/wwwroot
-COPY --from=ui-build /ui/dist/ ./wwwroot/
 
-# Render provides PORT; bind Kestrel to it
+# static files (React) -> wwwroot
+RUN mkdir -p /app/wwwroot
+COPY --from=ui-build /ui/dist/ /app/wwwroot/
+
+# Render sets PORT; bind Kestrel to it
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
 
-# Start the API
+# start the API
 CMD ["dotnet", "PatientApi.dll"]
