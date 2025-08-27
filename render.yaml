@@ -3,10 +3,8 @@ services:
 name: patient-api
 env: dotnet
 branch: main
-
 buildCommand: dotnet restore && dotnet publish -c Release -o out
-start: dotnet out/PatientApi.dll
-
+startCommand: dotnet out/PatientApi.dll
 envVars:
 - key: ASPNETCORE_URLS
 value: http://0.0.0.0:${PORT}
@@ -14,7 +12,6 @@ value: http://0.0.0.0:${PORT}
 value: Data Source=/data/patient.db
 # - key: OPENAI_API_KEY
 # value: <set-this-in-Render-dashboard>
-
 disk:
 name: data
 mountPath: /data
