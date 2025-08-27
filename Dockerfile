@@ -1,22 +1,27 @@
-# ---- Build stage ----
+# ---------- Build the React UI (Vite) ----------
+FROM node:20-alpine AS ui
+WORKDIR /ui
+COPY patient-ui/package*.json ./
+RUN npm ci
+COPY patient-ui/ ./
+RUN npm run build # outputs to /ui/dist
+
+# ---------- Build the .NET API ----------
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-
-# copy csproj & restore
-COPY *.csproj ./
-RUN dotnet restore
-
-# copy the rest & publish
 COPY . .
-RUN dotnet publish -c Release -o /app/publish
+RUN dotnet restore
+RUN dotnet publish -c Release -o /out
 
-# ---- Runtime stage ----
+# ---------- Runtime ----------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
-COPY --from=build /app/publish .
+# API
+COPY --from=build /out .
+# UI -> serve from wwwroot
+COPY --from=ui /ui/dist ./wwwroot
 
-# Render sets PORT; bind to it
+# Render provides PORT; bind Kestrel to it
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
 
-# If your project builds PatientApi.dll (default), this is correct:
 CMD ["dotnet", "PatientApi.dll"]
