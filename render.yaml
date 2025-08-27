@@ -1,15 +1,20 @@
 services:
   - type: web
     name: patient-api
-    runtime: dotnet
+    env: docker  # using Docker since you have a Dockerfile
     branch: main
-    buildCommand: dotnet restore && dotnet publish -c Release -o out
-    startCommand: dotnet out/PatientApi.dll
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+
     envVars:
       - key: ASPNETCORE_URLS
         value: http://0.0.0.0:${PORT}
       - key: ConnectionStrings__Default
         value: Data Source=/data/patient.db
+      # Uncomment and set in Render dashboard if using OpenAI:
+      # - key: OPENAI_API_KEY
+      #   sync: false
+
     disk:
       name: data
       mountPath: /data
