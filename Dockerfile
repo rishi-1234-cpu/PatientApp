@@ -1,37 +1,45 @@
-# ---------- Build React UI ----------
+# ---------- Stage 1: build the React UI ----------
 FROM node:20-alpine AS ui-build
 WORKDIR /ui
 
-# copy only package files first for better caching
-COPY PatientApi/patient-ui/package*.json ./
+# Copy only UI first for better caching
+COPY patient-ui/package*.json ./
 RUN npm ci --no-audit --no-fund
 
-# now copy the rest of the UI and build
-COPY PatientApi/patient-ui/ .
+# Copy the rest of the UI code and build
+COPY patient-ui/ ./
 RUN npm run build
 
-# ---------- Build & publish .NET API ----------
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# ---------- Stage 2: build & publish .NET API ----------
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-build
 WORKDIR /src
 
-# copy the API project and restore/publish
-COPY PatientApi/ PatientApi/
-RUN dotnet restore PatientApi/PatientApi.csproj
-RUN dotnet publish PatientApi/PatientApi.csproj -c Release -o /app/publish
+# Copy csproj separately to leverage restore cache
+COPY PatientApi.csproj ./
+RUN dotnet restore
 
-# ---------- Runtime ----------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+# Copy the rest of the API source and publish
+COPY . .
+RUN dotnet publish -c Release -o /app/publish
+
+# ---------- Stage 3: final runtime ----------
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
-# publish output
-COPY --from=build /app/publish .
+# Copy API
+COPY --from=dotnet-build /app/publish ./
 
-# static files (React) -> wwwroot
-RUN mkdir -p /app/wwwroot
-COPY --from=ui-build /ui/dist/ /app/wwwroot/
+# Copy built UI into wwwroot so ASP.NET can serve it
+COPY --from=ui-build /ui/dist ./wwwroot
 
-# Render sets PORT; bind Kestrel to it
+# Kestrel must listen on PORT provided by Render
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
 
-# start the API
-CMD ["dotnet", "PatientApi.dll"]
+# (Optional but nice) default to Production
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+# Expose is not strictly required on Render, but harmless
+EXPOSE 10000
+
+# Start the app
+ENTRYPOINT ["dotnet", "PatientApi.dll"]
