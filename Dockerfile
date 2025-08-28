@@ -1,45 +1,32 @@
 # ---------- Stage 1: build the React UI ----------
 FROM node:20-alpine AS ui-build
 WORKDIR /ui
-
-# Copy only UI first for better caching
 COPY patient-ui/package*.json ./
 RUN npm ci --no-audit --no-fund
-
-# Copy the rest of the UI code and build
-COPY patient-ui/ ./
+COPY patient-ui/ .
 RUN npm run build
 
-# ---------- Stage 2: build & publish .NET API ----------
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-build
+# ---------- Stage 2: build the .NET API ----------
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS dotnet-build
 WORKDIR /src
-
-# Copy csproj separately to leverage restore cache
-COPY PatientApi.csproj ./
-RUN dotnet restore
-
-# Copy the rest of the API source and publish
 COPY . .
+RUN dotnet restore ./PatientApi.csproj
 RUN dotnet publish -c Release -o /app/publish
 
 # ---------- Stage 3: final runtime ----------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
 WORKDIR /app
 
-# Copy API
-COPY --from=dotnet-build /app/publish ./
-
-# Copy built UI into wwwroot so ASP.NET can serve it
-COPY --from=ui-build /ui/dist ./wwwroot
-
-# Kestrel must listen on PORT provided by Render
+# runtime env (Render injects PORT)
 ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT}
+# writable place for SQLite inside container
+ENV DB_PATH=/tmp/patient.db
 
-# (Optional but nice) default to Production
-ENV ASPNETCORE_ENVIRONMENT=Production
+# API
+COPY --from=dotnet-build /app/publish/ ./
 
-# Expose is not strictly required on Render, but harmless
-EXPOSE 10000
+# UI -> wwwroot
+COPY --from=ui-build /ui/dist/ ./wwwroot/
 
-# Start the app
-ENTRYPOINT ["dotnet", "PatientApi.dll"]
+# start
+CMD ["dotnet", "PatientApi.dll"]
