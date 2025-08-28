@@ -1,352 +1,204 @@
-/* ===============================
-Patient Portal – index.css (FINAL)
-=============================== */
-
-/* ---------- Theme tokens ---------- */
+/* ---------- Base / reset ---------- */
 :root {
-    /* Lock app to light scheme so inputs are always readable */
-    color-scheme: light;
-    --bg: #f5f7fb;
+    color-scheme: light; /* tell Safari/iOS to render light widgets */
+    --bg: #f7fafc;
     --card: #ffffff;
-    --ink: #0f172a;
+    --text: #111827;
     --muted: #6b7280;
-    --brand: #2563eb;
-    --brand-600: #1d4ed8;
-    --brand-50: #eef2ff;
-    --accent: #10b981;
-    --danger: #ef4444;
-    --warning: #f59e0b;
-    --line: #e5e7eb;
-    --shadow: 0 8px 24px rgba(0,0,0,.06);
+    --primary: #2563eb; /* button background */
+    --primary-600: #1d4ed8; /* hover */
+    --primary-700: #1e40af; /* active */
+    --ring: rgba(37, 99, 235, .35); /* focus ring */
+    --border: #e5e7eb;
 }
 
-/* ---------- Page ---------- */
 html, body {
-    height: 100%
-}
-
-body {
     margin: 0;
+    padding: 0;
     background: var(--bg);
-    font-family: system-ui,-apple-system,Segoe UI,Roboto,Inter,"Helvetica Neue",Arial,sans-serif;
-    color: var(--ink);
-    line-height: 1.45;
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    -webkit-text-size-adjust: 100%;
 }
 
-.page {
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+#root {
     max-width: 1100px;
     margin: 24px auto;
-    padding: 0 20px
+    padding: 0 16px;
 }
 
-/* ---------- Title ---------- */
-h1 {
-    font-size: 44px;
-    line-height: 1.1;
-    margin: 12px 0 20px;
-    text-align: left;
-    letter-spacing: .3px;
-}
-
-/* ---------- Section label ---------- */
-.section-title {
-    font-weight: 700;
-    color: #111827;
-    margin: 18px 0 10px;
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.card .section-title::before {
-    content: "";
-    width: 6px;
-    height: 18px;
-    background: var(--brand);
-    border-radius: 3px;
-    display: inline-block;
-}
-
-/* ---------- Cards / panels ---------- */
-.card {
+/* ---------- Cards / sections ---------- */
+section, .card {
     background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 16px;
-    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 8px 20px rgba(0,0,0,.04);
 }
 
-/* ---------- Helpers ---------- */
-.row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap
+/* ---------- Form controls ---------- */
+input, select, textarea, button {
+    font: inherit;
 }
 
-.mt-12 {
-    margin-top: 12px
+/* iOS/Safari: ensure light backgrounds & visible text */
+input, select, textarea {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #ffffff !important;
+    color: var(--text) !important;
+    caret-color: var(--text);
+    -webkit-text-fill-color: var(--text); /* critical for iOS dark mode */
+    appearance: none; /* normalize look */
+    -webkit-appearance: none;
+    transition: border-color .15s, box-shadow .15s;
 }
 
-.mt-16 {
-    margin-top: 16px
-}
-
-.mt-20 {
-    margin-top: 20px
-}
-
-.muted {
-    color: var(--muted)
-}
-
-/* ---------- Form grid (Add Patient) ---------- */
-.grid {
-    display: grid;
-    gap: 12px 14px;
-    margin-bottom: 12px;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-
-    .grid input {
-        padding: 10px 12px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        outline: none;
-        background: #fff;
-        color: #0f172a;
+/* avoid iOS auto-zoom when focusing inputs */
+@supports (-webkit-touch-callout: none) {
+    input, select, textarea {
+        font-size: 16px;
     }
+}
 
-        .grid input:focus {
-            border-color: var(--brand);
-            box-shadow: 0 0 0 3px rgba(37,99,235,.12)
-        }
+input::placeholder {
+    color: var(--muted);
+    opacity: .9;
+}
+
+/* focus ring */
+input:focus, select:focus, textarea:focus, button:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Date picker: make calendar icon visible in light theme on iOS */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0); /* ensure dark icon on light background */
+    opacity: .75;
+}
+
+input[type="date"] {
+    position: relative;
+}
 
 /* ---------- Buttons ---------- */
-.btn {
-    padding: 10px 16px;
-    border-radius: 10px;
-    border: 1px solid transparent;
-    background: var(--brand);
-    color: #fff;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all .15s ease;
-    box-shadow: 0 4px 14px rgba(37,99,235,.18);
-}
-
-    .btn:hover {
-        background: var(--brand-600);
-        transform: translateY(-1px)
-    }
-
-    .btn:disabled {
-        opacity: .5;
-        cursor: not-allowed;
-        transform: none
-    }
-
-.btn--light {
-    background: #f3f4f6;
-    color: #111827;
-    border-color: var(--line);
-    box-shadow: none
-}
-
-.btn--danger {
-    background: var(--danger)
-}
-
-.btn--subtle {
-    background: #eef2ff;
-    color: #1e3a8a;
-    border: 1px solid #e0e7ff
-}
-
-.btn--link {
-    background: transparent;
-    color: var(--brand);
-    border: none;
-    padding: 0 8px;
-    box-shadow: none
-}
-
-/* ---------- Inline delete confirm ---------- */
-.confirm-inline {
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
     display: inline-flex;
-    gap: 8px;
     align-items: center;
-    margin-left: 8px;
-    padding-left: 10px;
-    border-left: 1px dashed var(--line);
-    font-size: .95rem;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--primary);
+    background: var(--primary); /* <- visible solid color */
+    color: #fff;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: background .15s, border-color .15s, transform .02s ease-in;
 }
+
+    button:hover {
+        background: var(--primary-600);
+        border-color: var(--primary-600);
+    }
+
+    button:active {
+        background: var(--primary-700);
+        border-color: var(--primary-700);
+        transform: translateY(1px);
+    }
+
+    button:disabled,
+    button[disabled] {
+        background: #d1d5db !important;
+        border-color: #d1d5db !important;
+        color: #ffffff !important;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    /* Secondary buttons (if you have “Clear”, “Edit”, etc.) */
+    button.secondary {
+        background: #ffffff;
+        color: var(--text);
+        border-color: var(--border);
+    }
+
+        button.secondary:hover {
+            border-color: #cbd5e1;
+        }
+
+/* Small helper spacing for your grid-like form */
+.form-row {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(6, 1fr);
+}
+
+    .form-row > * {
+        min-width: 0;
+    }
 
 /* ---------- Table ---------- */
-.table-wrap {
-    overflow-x: auto;
-    background: var(--card);
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    border: 1px solid var(--line)
-}
-
-.table {
+table {
     width: 100%;
     border-collapse: collapse;
-    background: #fff
+    background: var(--card);
 }
 
-    .table thead th {
-        background: linear-gradient(0deg, #f0f4ff, #e8eefc);
-        color: #1f2937;
-        font-weight: 700;
-        text-align: left;
-        letter-spacing: .2px;
-        border-bottom: 2px solid #d7def5;
-        padding: 12px 14px;
-    }
-
-    .table td {
-        border-bottom: 1px solid #eef0f4;
-        padding: 12px 14px
-    }
-
-    .table tbody tr:nth-child(even) {
-        background-color: #f9fafb;
-    }
-
-    .table tbody tr:nth-child(odd) {
-        background-color: #ffffff;
-    }
-
-.actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px
+thead th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 10px;
 }
 
-/* ---------- AI panels ---------- */
-.summary-box, .answer-box {
-    background: #fafbff;
-    border: 1px dashed #c7d2fe;
-    border-radius: 12px;
-    padding: 14px;
-    min-height: 52px;
-    white-space: pre-wrap;
-    color: #0f172a;
+tbody td {
+    border-bottom: 1px solid var(--border);
+    padding: 12px 10px;
 }
 
-.toolbar {
-    display: flex;
-    gap: 8px;
-    margin: 4px 0 12px
-}
-
-/* ---------- Ask row: textarea + button side-by-side ---------- */
-.ask-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    align-items: start;
-}
-
-    .ask-row textarea {
-        min-height: 70px;
-        resize: vertical;
-        padding: 10px 12px;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        outline: none;
-        background: #fff;
-        color: #0f172a;
-        caret-color: #0f172a;
+/* ---------- Mobile tweaks ---------- */
+@media (max-width: 768px) {
+    #root {
+        margin: 16px auto;
     }
 
-.ask-btn {
-    padding: 8px 16px
-}
-
-/* ---------- Force readable inputs on mobile / dark-mode browsers ---------- */
-input, textarea, select, button {
-    color: #0f172a !important;
-    background: #ffffff !important;
-    border-color: #e5e7eb !important;
-}
-
-::placeholder {
-    color: #9ca3af;
-}
-
-input, textarea {
-    -webkit-text-fill-color: #0f172a !important;
-}
-
-    input:-webkit-autofill,
-    textarea:-webkit-autofill,
-    select:-webkit-autofill {
-        -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
-        -webkit-text-fill-color: #0f172a !important;
-    }
-    /* Date input value + icon visibility */
-    input[type="date"]::-webkit-datetime-edit,
-    input[type="date"]::-webkit-date-and-time-value {
-        color: #0f172a !important;
+    .form-row {
+        grid-template-columns: 1fr 1fr;
     }
 
-    input[type="date"]::-webkit-calendar-picker-indicator {
-        filter: invert(0);
-        opacity: .8;
-    }
-
-/* ---------- Subtle pulse when new content arrives ---------- */
-@keyframes pulseBox {
-    0% {
-        box-shadow: 0 0 0 0 rgba(37,99,235,.35)
-    }
-
-    70% {
-        box-shadow: 0 0 0 10px rgba(37,99,235,0)
-    }
-
-    100% {
-        box-shadow: 0 0 0 0 rgba(37,99,235,0)
-    }
-}
-
-.pulse {
-    animation: pulseBox 900ms ease-out 1;
-    border-color: #93c5fd
-}
-
-/* ---------- Responsive ---------- */
-@media (max-width:980px) {
-    .grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
-
-@media (max-width:720px) {
-    .grid {
-        grid-template-columns: 1fr 1fr
+    button {
+        width: 100%;
     }
 
     .actions {
-        gap: 6px
-    }
-
-    .ask-row {
-        grid-template-columns: 1fr
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
     }
 }
 
-@media (max-width:480px) {
-    h1 {
-        font-size: 34px
-    }
-
-    .grid {
-        grid-template-columns: 1fr
-    }
+/* Optional: make the whole app feel snappier on iOS */
+:focus-visible {
+    outline: none;
 }
