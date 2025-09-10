@@ -7,7 +7,7 @@ import {
     sendMessageHttp,
     type ChatCreateDto,
     type ChatMessage,
-} from "../Services/chat"; // <-- change to "../Services/chat" if your folder uses capital S
+} from "../Services/chat";
 
 type ConnState = "idle" | "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -27,13 +27,17 @@ export default function Chat() {
 
     // ---- history (cache per room) ----
     const listRef = useRef<HTMLDivElement | null>(null);
-    const { data: history = [], refetch } = useQuery({
+    const {
+        data: history = [],
+        refetch,
+    } = useQuery<ChatMessage[], Error>({
         queryKey: ["chat", room],
         queryFn: () => getRecent(room, 50),
         staleTime: 0,
         refetchOnReconnect: true,
         refetchOnWindowFocus: false,
-        keepPreviousData: true,
+        // v5 replacement for keepPreviousData
+        placeholderData: (prev) => prev,
     });
 
     const messages = useMemo<ChatMessage[]>(() => history, [history]);
@@ -52,11 +56,10 @@ export default function Chat() {
 
         async function start() {
             setConnState("connecting");
-            // stop old conn if any (should be null on first mount)
+
+            // stop old conn if any
             if (hubRef.current) {
-                try {
-                    await hubRef.current.stop();
-                } catch { }
+                try { await hubRef.current.stop(); } catch { }
                 hubRef.current = null;
             }
 
@@ -82,9 +85,7 @@ export default function Chat() {
 
                 // join the initial room
                 prevRoomRef.current = room;
-                try {
-                    await hub.invoke("JoinRoom", room);
-                } catch { }
+                try { await hub.invoke("JoinRoom", room); } catch { }
 
                 // fetch history for initial room
                 await refetch();
@@ -100,7 +101,6 @@ export default function Chat() {
             const hub = hubRef.current;
             hubRef.current = null;
             if (hub) {
-                // try leave current room and stop
                 hub.invoke("LeaveRoom", prevRoomRef.current).catch(() => { });
                 hub.stop().catch(() => { });
             }
@@ -116,9 +116,7 @@ export default function Chat() {
 
             const prev = prevRoomRef.current;
             if (prev && prev !== room) {
-                try {
-                    await hub.invoke("LeaveRoom", prev);
-                } catch { }
+                try { await hub.invoke("LeaveRoom", prev); } catch { }
             }
             try {
                 await hub.invoke("JoinRoom", room);
@@ -134,15 +132,14 @@ export default function Chat() {
         mutationFn: (payload: ChatCreateDto) => sendMessageHttp(payload),
         onSuccess: async (saved) => {
             // optimistic update to current room
-            qc.setQueryData<ChatMessage[]>(["chat", saved.room], (prev) =>
+            const r = saved.room ?? room;
+            qc.setQueryData<ChatMessage[]>(["chat", r], (prev) =>
                 prev ? [...prev, saved] : [saved]
             );
             setText("");
 
             // safety net (ensure parity across tabs)
-            setTimeout(() => {
-                refetch();
-            }, 50);
+            setTimeout(() => { refetch(); }, 50);
         },
     });
 
