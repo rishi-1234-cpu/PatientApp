@@ -60,7 +60,7 @@ var sqlitePath = Environment.GetEnvironmentVariable("SQLITE_PATH") ?? "/var/data
 try
 {
     var dir = Path.GetDirectoryName(sqlitePath);
-    if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+    if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir!);
 }
 catch { /* ignore */ }
 
@@ -118,18 +118,34 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IOpenAIChatService, OpenAIChatService>();
 builder.Services.AddHttpClient<IOpenAIChatService, OpenAIChatService>();
 
-// ---- CORS (use FRONTEND_URL env var) ----
+// ---- CORS (add your deployed frontend + safe Render previews) ----
 var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL");
-var allowedOrigins = new List<string> { "http://localhost:5173", "https://localhost:5173" };
-if (!string.IsNullOrWhiteSpace(frontendUrl)) allowedOrigins.Add(frontendUrl);
+// Your static site URL on Render:
+const string deployedFrontend = "https://patient-portal-ipd.onrender.com";
+
+var explicitAllowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+"http://localhost:5173",
+"https://localhost:5173",
+deployedFrontend
+};
+if (!string.IsNullOrWhiteSpace(frontendUrl)) explicitAllowed.Add(frontendUrl);
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("_allowClient", policy =>
-    policy.WithOrigins(allowedOrigins.ToArray())
+    policy
+    // allow our explicit list AND any *.onrender.com preview for this app
+    .SetIsOriginAllowed(origin =>
+    {
+        if (string.IsNullOrEmpty(origin)) return false;
+        if (explicitAllowed.Contains(origin)) return true;
+        return origin.EndsWith(".onrender.com", StringComparison.OrdinalIgnoreCase);
+    })
     .AllowAnyHeader()
     .AllowAnyMethod()
-    .AllowCredentials());
+    .AllowCredentials()
+    );
 });
 
 // ---- SignalR ----
@@ -162,7 +178,7 @@ PRAGMA synchronous=NORMAL;
 PRAGMA busy_timeout=5000;";
         await cmd.ExecuteNonQueryAsync();
     }
-    catch { }
+    catch { /* non-fatal */ }
 
     SeedData.EnsureSeeded(db);
     await IdentitySeed.EnsureIdentitySeedAsync(sp);
@@ -174,7 +190,9 @@ app.UseSwaggerUI();
 
 app.UseForwardedHeaders();
 app.UseHttpsRedirection();
+
 app.UseCors("_allowClient");
+
 app.UseAuthentication();
 
 // ApiKey only for unauthenticated
