@@ -10,128 +10,126 @@ namespace PatientApi.Data
             // Create DB if needed (migrations are handled in Program.cs)
             db.Database.EnsureCreated();
 
-            // ---- PATIENT ----
-            Patient patient;
-            if (!db.Patients.Any())
+            // ===== PATIENT =====
+            var demoEmail = "rishi@example.com";
+            var patient = db.Patients.FirstOrDefault(p => p.Email == demoEmail);
+            if (patient == null)
             {
                 patient = new Patient
                 {
                     Name = "Rishi Demo",
-                    Email = "rishi@example.com",
-                    Phone = "+91-8089765456",
-                    Gender = "Male",
-                    Address = "101 Demo Street",
-                    DateOfBirth = new DateTime(1990, 5, 12),
-                    Notes = "Demo patient created by seed."
+                    Email = demoEmail,
+                    Phone = "+1-555-0100",
+                    Gender = "Male"
                 };
                 db.Patients.Add(patient);
                 db.SaveChanges();
             }
-            else
-            {
-                // Pick the first for demo linkage
-                patient = db.Patients.First();
-            }
 
-            // ---- ADMISSION ----
-            Admission admission;
-            if (!db.Admissions.Any())
+            // ===== ADMISSION =====
+            var admission = db.Admissions
+            .FirstOrDefault(a => a.PatientId == patient.Id);
+            if (admission == null)
             {
                 admission = new Admission
                 {
                     PatientId = patient.Id,
                     AdmissionDate = DateTime.UtcNow.AddDays(-2),
-                    Reason = "Fever and cough",
-                    Ward = "General",
-                    BedNumber = "G-12",
-                    DoctorName = "Dr. Carter",
-                    Notes = "Initial observation."
+                    Reason = "Fever and fatigue",
+                    Ward = "A2",
+                    BedNumber = "12",
+                    DoctorName = "Dr. Demo",
+                    Notes = "Admitted for observation"
                 };
                 db.Admissions.Add(admission);
                 db.SaveChanges();
             }
-            else
-            {
-                admission = db.Admissions.Include(a => a.Patient)
-                .OrderByDescending(a => a.Id)
-                .First();
-            }
 
-            // ---- VITALS ----
-            if (!db.Vitals.Any())
+            // ===== VITALS (two samples) =====
+            bool hasVitals = db.Vitals.Any(v => v.PatientId == patient.Id);
+            if (!hasVitals)
             {
-                var now = DateTime.UtcNow;
-                db.Vitals.AddRange(new[]
+                db.Vitals.AddRange(
+                new Vital
                 {
-new Vital
-{
-PatientId = patient.Id,
-RecordedAt = now.AddHours(-30),
-TemperatureC = 38.2m,
-Pulse = 96,
-RespRate = 18,
-Systolic = 122,
-Diastolic = 78,
-SpO2 = 97,
-Notes = "Admitted with fever."
-},
-new Vital
-{
-PatientId = patient.Id,
-RecordedAt = now.AddHours(-4),
-TemperatureC = 37.3m,
-Pulse = 88,
-RespRate = 17,
-Systolic = 120,
-Diastolic = 76,
-SpO2 = 98,
-Notes = "Improving on meds."
-}
-});
+                    PatientId = patient.Id,
+                    TakenAt = DateTime.UtcNow.AddDays(-1).AddHours(-6),
+                    Temperature = 38.2, // °C
+                    Pulse = 92,
+                    RespRate = 18,
+                    Systolic = 120,
+                    Diastolic = 78,
+                    SpO2 = 98,
+                    Notes = "Initial vitals on admission"
+                },
+                new Vital
+                {
+                    PatientId = patient.Id,
+                    TakenAt = DateTime.UtcNow.AddHours(-2),
+                    Temperature = 37.3,
+                    Pulse = 86,
+                    RespRate = 17,
+                    Systolic = 118,
+                    Diastolic = 76,
+                    SpO2 = 99,
+                    Notes = "Improved by evening"
+                }
+                );
                 db.SaveChanges();
             }
 
-            // ---- BILLING ----
-            if (!db.Billings.Any())
+            // ===== BILLING =====
+            bool hasBilling = db.Billings.Any(b => b.AdmissionId == admission.Id);
+            if (!hasBilling)
             {
+                var room = 1200m;
+                var treatment = 900m;
+                var meds = 250m;
+                var other = 50m;
+                var discount = 100m;
+                var tax = 0.18m * (room + treatment + meds + other - discount);
+                var total = room + treatment + meds + other - discount + tax;
+
                 db.Billings.Add(new Billing
                 {
                     PatientId = patient.Id,
                     AdmissionId = admission.Id,
-                    Amount = 650.00m,
+                    BilledAt = DateTime.UtcNow,
+                    RoomCharges = room,
+                    TreatmentCharges = treatment,
+                    MedicationCharges = meds,
+                    OtherCharges = other,
+                    Discount = discount,
+                    Tax = Math.Round(tax, 2),
+                    TotalAmount = Math.Round(total, 2),
                     Status = "Open",
-                    Notes = "Bed, diagnostics, and lab tests."
+                    Notes = "Initial billing on admission"
                 });
                 db.SaveChanges();
             }
 
-            // ---- DISCHARGE ----
-            if (!db.Discharges.Any())
+            // ===== DISCHARGE =====
+            bool hasDischarge = db.Discharges.Any(d => d.AdmissionId == admission.Id);
+            if (!hasDischarge)
             {
                 db.Discharges.Add(new Discharge
                 {
                     PatientId = patient.Id,
                     AdmissionId = admission.Id,
-                    DischargeDate = DateTime.UtcNow.AddHours(-1),
-                    Summary = "Diagnosed with viral fever; stable.",
-                    Instructions = "Hydration, rest, paracetamol as needed.",
-                    FollowUp = "OPD follow-up in 3 days",
-                    OutstandingAmount = 120.00m
+                    DischargeDate = DateTime.UtcNow, // keep admitted if you prefer: comment this out & remove create
+                    Summary = "Symptoms improved, afebrile.",
+                    Instructions = "Hydrate, rest, paracetamol PRN.",
+                    FollowUp = "OPD in 7 days",
+                    OutstandingAmount = 0m
                 });
                 db.SaveChanges();
-            }
 
-            // ---- CHAT MESSAGE (lobby) ----
-            if (!db.ChatMessages.Any())
-            {
-                db.ChatMessages.Add(new ChatMessage
+                // Optional: set admission discharge timestamp so UI can display
+                if (admission.DischargeDate == null)
                 {
-                    Room = "lobby",
-                    Sender = "staff:alice",
-                    Text = "Welcome to the IPD chat lobby 👋",
-                    SentAt = DateTime.UtcNow
-                });
-                db.SaveChanges();
+                    admission.DischargeDate = DateTime.UtcNow;
+                    db.SaveChanges();
+                }
             }
         }
     }
