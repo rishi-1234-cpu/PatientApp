@@ -23,9 +23,9 @@ const phoneRe = /^\+?[0-9\s-]{7,15}$/;
 function validatePatient(form: {
     firstName?: string;
     lastName?: string;
-    email?: string | null;
-    phone?: string | null;
-    dateOfBirth?: string | null;
+    email?: string; // ← no null here
+    phone?: string; // ← no null here
+    dateOfBirth?: string; // ← no null here
 }) {
     const errs: Record<string, string> = {};
     if (!form.firstName?.trim()) errs.firstName = "First name is required.";
@@ -57,17 +57,12 @@ export default function Patients() {
     // HARD stop for any stray empty/pseudo buttons (fixes “blank box”)
     const hardBlock = (
         <style>{`
-/* kill pseudo-content some UI kits add */
 button::before, button::after { content: none !important; }
-/* if any button renders with no text at all, hide it */
 button:empty { display: none !important; }
-
-/* our own button utility styles so text is always visible */
 .btn {
 display:inline-flex; align-items:center; justify-content:center;
 padding:10px 12px; border-radius:8px; line-height:1.2;
-gap:8px; user-select:none;
-font-weight:600; text-decoration:none;
+gap:8px; user-select:none; font-weight:600; text-decoration:none;
 }
 .btn--primary { background:#1976d2; color:#fff; border:0; }
 .btn--light { background:#fff; color:#111; border:1px solid #ccc; }
@@ -92,7 +87,7 @@ font-weight:600; text-decoration:none;
     const [summaryFor, setSummaryFor] = useState<number | null>(null);
     const [summaryText, setSummaryText] = useState<string>("");
 
-    // form model
+    // form model (keep strings; blank "" = empty)
     const [form, setForm] = useState<Partial<Patient>>({
         firstName: "",
         lastName: "",
@@ -206,18 +201,19 @@ font-weight:600; text-decoration:none;
             lastName: form.lastName,
             email: form.email,
             phone: form.phone,
-            dateOfBirth: form.dateOfBirth || null,
+            dateOfBirth: form.dateOfBirth, // ← no null
         });
         if (Object.keys(errs).length) {
             setFormErr(Object.values(errs)[0]);
             return;
         }
+        // IMPORTANT: use undefined (NOT null) for optional fields to match Patient type
         const payload: Partial<Patient> = {
             firstName: form.firstName?.trim(),
             lastName: form.lastName?.trim(),
-            email: form.email?.trim() || null,
-            phone: form.phone?.trim() || null,
-            gender: form.gender || null,
+            email: form.email?.trim() || undefined,
+            phone: form.phone?.trim() || undefined,
+            gender: form.gender?.toString().trim() || undefined,
             dateOfBirth: form.dateOfBirth!, // validated
         };
         setFormErr("");
@@ -428,7 +424,6 @@ font-weight:600; text-decoration:none;
                             {mode === "create" ? "Create" : "Save Changes"}
                         </button>
 
-                        {/* NOTE: explicit text + visible color so it can’t appear “blank” */}
                         <button
                             type="button"
                             onClick={resetForm}
