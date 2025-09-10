@@ -1,37 +1,57 @@
-﻿using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using PatientApi.Model;
+using System;
+using System.Threading.Tasks;
 
 namespace PatientApi.Data
 {
     public static class IdentitySeed
     {
-        public static async Task EnsureIdentitySeedAsync(IServiceProvider sp)
+        public static async Task EnsureIdentitySeedAsync(IServiceProvider services)
         {
-            var roleMgr = sp.GetRequiredService<RoleManager<IdentityRole>>();
-            var userMgr = sp.GetRequiredService<UserManager<ApplicationUser>>();
+            using var scope = services.CreateScope();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            string[] roles = new[] { "Admin", "Doctor", "Nurse", "Clerk" };
-            foreach (var r in roles)
-                if (!await roleMgr.RoleExistsAsync(r))
-                    await roleMgr.CreateAsync(new IdentityRole(r));
+            // Make sure identity tables exist
+            await db.Database.MigrateAsync();
 
-            // Admin user (dev only)
-            const string adminEmail = "admin@demo.local";
-            var admin = await userMgr.FindByNameAsync(adminEmail);
+            // Ensure core roles
+            string[] roles = { "Admin", "Doctor", "Nurse", "Clerk" };
+            foreach (var role in roles)
+            {
+                if (!await roleManager.RoleExistsAsync(role))
+                    await roleManager.CreateAsync(new IdentityRole(role));
+            }
+
+            // Ensure admin user
+            var adminEmail = "admin@patient.com";
+            var adminPassword = "Admin@123";
+
+            var admin = await userManager.FindByEmailAsync(adminEmail);
             if (admin == null)
             {
                 admin = new ApplicationUser
                 {
                     UserName = adminEmail,
                     Email = adminEmail,
+                    EmailConfirmed = true,
                     FullName = "System Administrator",
-                    Department = "IT"
+                    Department = "Admin"
                 };
-                await userMgr.CreateAsync(admin, "Admin@123");
-                await userMgr.AddToRoleAsync(admin, "Admin");
+
+                var create = await userManager.CreateAsync(admin, adminPassword);
+                if (!create.Succeeded)
+                {
+                    throw new Exception("Failed to create admin user: " +
+                    string.Join(", ", create.Errors));
+                }
             }
+
+            if (!await userManager.IsInRoleAsync(admin, "Admin"))
+                await userManager.AddToRoleAsync(admin, "Admin");
         }
     }
 }
