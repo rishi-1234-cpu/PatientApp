@@ -1,5 +1,5 @@
-// src/api.ts
-import axios from "axios";
+﻿// src/api.ts
+import axios, { AxiosRequestHeaders } from "axios";
 
 // Backend base URL (DEV): change here if your API port changes
 // Prefer the .env value; otherwise default to https://localhost:7100
@@ -22,7 +22,7 @@ const api = axios.create({
     headers: {
         "Content-Type": "application/json",
         ...(apiKey ? { "x-api-key": apiKey } : {}),
-    },
+    } as AxiosRequestHeaders, // ✅ cast to correct type
     withCredentials: false,
 });
 
@@ -30,7 +30,11 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem(JWT_STORAGE_KEY);
     if (token) {
-        (config.headers ||= {}).Authorization = `Bearer ${token}`;
+        // Make sure headers exists and is the correct type
+        const headers: AxiosRequestHeaders = (config.headers ||
+            {}) as AxiosRequestHeaders;
+        headers.Authorization = `Bearer ${token}`;
+        config.headers = headers;
     }
     return config;
 });
