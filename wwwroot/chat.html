@@ -1,0 +1,138 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Patient Portal – Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        input, button {
+            margin: 5px;
+            padding: 5px;
+        }
+
+        #messages {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            background: #f9f9f9;
+        }
+
+        .msg {
+            padding: 3px 0;
+        }
+
+        .time {
+            color: gray;
+            font-size: 0.8em;
+            margin-left: 6px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Patient Portal – Chat</h2>
+
+    <label>API key:</label>
+    <input id="apiKey" value="my-secure-chat-analytics-key" size="40">
+    <button onclick="connect()">Connect</button>
+    <span id="status" style="color:red;">disconnected</span>
+    <br>
+
+    <label>Room:</label>
+    <input id="room" value="patient-2">
+    <label>Sender:</label>
+    <input id="sender" value="staff:alice">
+    <label>PatientId:</label>
+    <input id="patientId" value="2" size="3">
+    <button onclick="loadHistory()">Load history</button>
+    <button onclick="clearMessages()">Clear</button>
+    <br>
+
+<textarea id="message" placeholder="Type a message..." rows="3" cols="60"></textarea><br>
+    <button onclick="sendMessage()">Send</button>
+
+    <h3>Messages</h3>
+    <div id="messages"></div>
+
+    <script>
+        let connection;
+        const shownMessageIds = new Set(); // Track displayed IDs
+
+        function appendMessage(msg) {
+            if (shownMessageIds.has(msg.id)) return; // Skip duplicates
+            shownMessageIds.add(msg.id);
+
+            const div = document.createElement("div");
+            div.className = "msg";
+            div.textContent = `${msg.sender}: ${msg.text}`;
+            const time = document.createElement("span");
+            time.className = "time";
+            time.textContent = new Date(msg.sentAt).toLocaleString();
+            div.appendChild(time);
+
+            document.getElementById("messages").appendChild(div);
+            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+        }
+
+        function connect() {
+            const apiKey = document.getElementById("apiKey").value;
+            const room = document.getElementById("room").value;
+
+            connection = new signalR.HubConnectionBuilder()
+                .withUrl(`/hubs/chat?access_token=${apiKey}`)
+                .build();
+
+            connection.on("newMessage", appendMessage);
+
+            connection.start().then(() => {
+                document.getElementById("status").textContent = "connected";
+                document.getElementById("status").style.color = "green";
+                connection.invoke("JoinRoom", room);
+            }).catch(err => console.error(err.toString()));
+        }
+
+        function sendMessage() {
+            const room = document.getElementById("room").value;
+            const sender = document.getElementById("sender").value;
+            const text = document.getElementById("message").value;
+            const patientId = parseInt(document.getElementById("patientId").value);
+
+            fetch(`/api/Chat`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": document.getElementById("apiKey").value
+                },
+                body: JSON.stringify({ room, sender, text, patientId })
+            }).then(r => r.json())
+                .then(data => {
+                    appendMessage(data);
+                    document.getElementById("message").value = "";
+                });
+        }
+
+        function loadHistory() {
+            const room = document.getElementById("room").value;
+            const take = 50;
+
+            fetch(`/api/Chat?room=${encodeURIComponent(room)}&take=${take}`, {
+                headers: { "x-api-key": document.getElementById("apiKey").value }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    data.forEach(appendMessage);
+                });
+        }
+
+        function clearMessages() {
+            document.getElementById("messages").innerHTML = "";
+            shownMessageIds.clear();
+        }
+    </script>
+</body>
+</html>

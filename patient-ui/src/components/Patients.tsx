@@ -1,473 +1,445 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
-import api from "../api";
+﻿// src/components/Patients.tsx
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+    getPatients,
+    getPatient,
+    createPatient,
+    updatePatient,
+    deletePatient,
+    getPatientSummary,
+    type Patient,
+} from "../Services/patients";
 
-/* Types */
-type Patient = {
-    id: number;
-    firstName: string;
-    lastName: string;
-    dateOfBirth: string; // ISO
-    gender: string;
-    email: string;
-    phone: string;
-};
+/* ---------------------------- helpers ---------------------------- */
+function toFullName(p: Partial<Patient>) {
+    const f = (p.firstName ?? "").trim();
+    const l = (p.lastName ?? "").trim();
+    return [f, l].filter(Boolean).join(" ");
+}
+const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const phoneRe = /^\+?[0-9\s-]{7,15}$/;
 
-type AiSummaryDto = { id: number; summary: string };
-type AskDto = { reply?: string; answer?: string; content?: string; text?: string };
+function validatePatient(form: {
+    firstName?: string;
+    lastName?: string;
+    email?: string | null;
+    phone?: string | null;
+    dateOfBirth?: string | null;
+}) {
+    const errs: Record<string, string> = {};
+    if (!form.firstName?.trim()) errs.firstName = "First name is required.";
+    if (!form.lastName?.trim()) errs.lastName = "Last name is required.";
 
-/* Helpers */
-const dateStr = (iso?: string) => (iso ? new Date(iso).toLocaleDateString() : "");
-const joinName = (p?: Partial<Patient>) =>
-    [p?.firstName, p?.lastName].filter(Boolean).join(" ").trim();
+    if (!form.dateOfBirth) {
+        errs.dateOfBirth = "Date of birth is required.";
+    } else {
+        const d = new Date(form.dateOfBirth);
+        const today = new Date();
+        if (isNaN(+d)) errs.dateOfBirth = "Enter a valid date.";
+        else if (d > today) errs.dateOfBirth = "DOB cannot be in the future.";
+        else if (d.getFullYear() < 1900) errs.dateOfBirth = "DOB year must be ≥ 1900.";
+    }
+
+    if (form.email && !emailRe.test(form.email)) errs.email = "Enter a valid email.";
+    if (form.phone && !phoneRe.test(form.phone))
+        errs.phone = "Enter a valid phone (digits/spaces/-/+, 7–15 chars).";
+
+    return errs;
+}
+
+/* ----------------------------- component ----------------------------- */
+type Mode = "idle" | "create" | "edit";
 
 export default function Patients() {
-    /* Data */
-    const [patients, setPatients] = useState<Patient[]>([]);
-    const [loading, setLoading] = useState(false);
+    const qc = useQueryClient();
 
-    /* Create form + validation */
-    const [newP, setNewP] = useState<Partial<Patient>>({
+    // HARD stop for any stray empty/pseudo buttons (fixes “blank box”)
+    const hardBlock = (
+        <style>{`
+/* kill pseudo-content some UI kits add */
+button::before, button::after { content: none !important; }
+/* if any button renders with no text at all, hide it */
+button:empty { display: none !important; }
+
+/* our own button utility styles so text is always visible */
+.btn {
+display:inline-flex; align-items:center; justify-content:center;
+padding:10px 12px; border-radius:8px; line-height:1.2;
+gap:8px; user-select:none;
+font-weight:600; text-decoration:none;
+}
+.btn--primary { background:#1976d2; color:#fff; border:0; }
+.btn--light { background:#fff; color:#111; border:1px solid #ccc; }
+.btn--danger { background:#e53935; color:#fff; border:0; }
+.btn--thin { padding:6px 10px; border-radius:6px; }
+`}</style>
+    );
+
+    // data
+    const { data, isLoading, isError } = useQuery({
+        queryKey: ["patients"],
+        queryFn: getPatients,
+    });
+
+    // ui state
+    const [search, setSearch] = useState("");
+    const [mode, setMode] = useState<Mode>("idle");
+    const [editingId, setEditingId] = useState<number | string | null>(null);
+    const [confirmId, setConfirmId] = useState<number | string | null>(null);
+
+    // AI summary
+    const [summaryFor, setSummaryFor] = useState<number | null>(null);
+    const [summaryText, setSummaryText] = useState<string>("");
+
+    // form model
+    const [form, setForm] = useState<Partial<Patient>>({
         firstName: "",
         lastName: "",
-        dateOfBirth: "",
-        gender: "",
         email: "",
         phone: "",
+        gender: "Male",
+        dateOfBirth: "",
     });
-    const [touched, setTouched] = useState<Record<string, boolean>>({});
-    const markTouched = (k: keyof Patient) => setTouched((t) => ({ ...t, [k]: true }));
+    const [formErr, setFormErr] = useState("");
 
-    const errors = useMemo(() => {
-        const e: Record<string, string> = {};
-        if (!newP.firstName?.trim()) e.firstName = "First name is required.";
-        if (!newP.lastName?.trim()) e.lastName = "Last name is required.";
-        if (!newP.dateOfBirth) e.dateOfBirth = "Date of birth is required.";
-        if (!newP.gender?.trim()) e.gender = "Gender is required.";
-        if (!newP.phone?.trim()) e.phone = "Phone is required.";
-        if (!newP.email?.trim()) e.email = "Email is required.";
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newP.email)) e.email = "Enter a valid email.";
-        return e;
-    }, [newP]);
-    const canCreate = Object.keys(errors).length === 0;
-
-    /* Edit */
-    const [editId, setEditId] = useState<number | null>(null);
-    const [draft, setDraft] = useState<Partial<Patient>>({});
-
-    /* Delete confirm (inline) */
-    const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-
-    /* AI summary UI */
-    const [summaryHtml, setSummaryHtml] = useState<string>("");
-    const [summaryHeader, setSummaryHeader] = useState<string>("AI Summary");
-    const [summaryPulse, setSummaryPulse] = useState(false);
-    const summaryRef = useRef<HTMLDivElement | null>(null);
-
-    /* Ask AI UI */
-    const [askText, setAskText] = useState("");
-    const [answerHtml, setAnswerHtml] = useState("");
-    const [answerPulse, setAnswerPulse] = useState(false);
-    const askRef = useRef<HTMLDivElement | null>(null);
-
-    /* Load patients */
-    const load = async () => {
-        setLoading(true);
-        const res = await api.get<Patient[]>("/Patient");
-        setPatients(res.data);
-        setLoading(false);
-    };
+    // populate form when editing
     useEffect(() => {
-        load();
-    }, []);
+        if (mode === "edit" && editingId != null) {
+            getPatient(editingId).then((p) =>
+                setForm({
+                    firstName: p.firstName ?? "",
+                    lastName: p.lastName ?? "",
+                    email: p.email ?? "",
+                    phone: p.phone ?? "",
+                    gender: p.gender ?? "Male",
+                    dateOfBirth: (p.dateOfBirth ?? "").slice(0, 10),
+                })
+            );
+            setFormErr("");
+        }
+    }, [mode, editingId]);
 
-    /* --- Create --- */
-    const create = async () => {
-        setTouched({
-            firstName: true,
-            lastName: true,
-            dateOfBirth: true,
-            gender: true,
-            email: true,
-            phone: true,
+    // mutations
+    const mCreate = useMutation({
+        mutationFn: (payload: Partial<Patient>) => createPatient(payload),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["patients"] });
+            resetForm();
+        },
+    });
+    const mUpdate = useMutation({
+        mutationFn: (payload: Partial<Patient>) => {
+            if (editingId == null) throw new Error("No patient id to update");
+            return updatePatient(editingId, payload);
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["patients"] });
+            resetForm();
+        },
+    });
+    const mDelete = useMutation({
+        mutationFn: (id: number | string) => deletePatient(id),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["patients"] });
+            setConfirmId(null);
+        },
+    });
+
+    // derived rows
+    const rows = useMemo(() => {
+        const t = search.trim().toLowerCase();
+        if (!data) return [];
+        if (!t) return data;
+        return data.filter((p) => {
+            const id = String(p.id);
+            const name = toFullName(p).toLowerCase();
+            const email = (p.email ?? "").toLowerCase();
+            const phone = (p.phone ?? "").toLowerCase();
+            const gender = (p.gender ?? "").toLowerCase();
+            return id.includes(t) || name.includes(t) || email.includes(t) || phone.includes(t) || gender.includes(t);
         });
-        if (!canCreate) return;
+    }, [data, search]);
 
-        await api.post("/Patient", newP);
-        setNewP({
+    // helpers
+    function resetForm() {
+        setMode("idle");
+        setEditingId(null);
+        setForm({
             firstName: "",
             lastName: "",
-            dateOfBirth: "",
-            gender: "",
             email: "",
             phone: "",
-        });
-        setTouched({});
-        await load();
-    };
-    const clearNew = () => {
-        setNewP({
-            firstName: "",
-            lastName: "",
+            gender: "Male",
             dateOfBirth: "",
-            gender: "",
-            email: "",
-            phone: "",
         });
-        setTouched({});
-    };
+        setFormErr("");
+    }
+    function onEdit(p: Patient) {
+        setEditingId(p.id);
+        setMode("edit");
+    }
+    function onDeleteClick(p: Patient) {
+        setConfirmId(p.id);
+    }
+    function onConfirmDelete(id: number | string) {
+        mDelete.mutate(id);
+    }
+    function onCancelDelete() {
+        setConfirmId(null);
+    }
+    async function onSummary(p: Patient) {
+        setSummaryFor(p.id);
+        setSummaryText("Loading summary…");
+        try {
+            const res = await getPatientSummary(p.id);
+            setSummaryText(res.summary ?? "(No summary returned)");
+        } catch {
+            setSummaryText("Failed to fetch summary.");
+        }
+    }
 
-    /* --- Edit / Update --- */
-    const beginEdit = (p: Patient) => {
-        setEditId(p.id);
-        setDraft({ ...p });
-        setConfirmDeleteId(null);
-    };
-    const cancelEdit = () => {
-        setEditId(null);
-        setDraft({});
-    };
-    const update = async () => {
-        if (editId == null) return;
-        await api.put(`/Patient/${editId}`, draft);
-        setEditId(null);
-        setDraft({});
-        await load();
-    };
+    function onSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        const errs = validatePatient({
+            firstName: form.firstName,
+            lastName: form.lastName,
+            email: form.email,
+            phone: form.phone,
+            dateOfBirth: form.dateOfBirth || null,
+        });
+        if (Object.keys(errs).length) {
+            setFormErr(Object.values(errs)[0]);
+            return;
+        }
+        const payload: Partial<Patient> = {
+            firstName: form.firstName?.trim(),
+            lastName: form.lastName?.trim(),
+            email: form.email?.trim() || null,
+            phone: form.phone?.trim() || null,
+            gender: form.gender || null,
+            dateOfBirth: form.dateOfBirth!, // validated
+        };
+        setFormErr("");
+        if (mode === "create") mCreate.mutate(payload);
+        if (mode === "edit") mUpdate.mutate(payload);
+    }
 
-    /* --- Delete --- */
-    const askDelete = (id: number) => setConfirmDeleteId(id);
-    const cancelDelete = () => setConfirmDeleteId(null);
-    const confirmDelete = async (id: number) => {
-        await api.delete(`/Patient/${id}`);
-        setConfirmDeleteId(null);
-        await load();
-    };
+    const todayStr = new Date().toISOString().slice(0, 10);
 
-    /* --- AI Summary --- */
-    const aiSummary = async (p: Patient) => {
-        setSummaryHeader(`AI Summary for #${p.id} ${joinName(p)}`);
-        setSummaryHtml(`<span class="muted">Thinking…</span>`);
-        const res = await api.get<AiSummaryDto>(`/Patient/${p.id}/summary`);
-        const raw = (res.data as any)?.summary ?? "";
-        setSummaryHtml(raw || '<span class="muted">No content.</span>');
-        setSummaryPulse(true);
-        setTimeout(() => setSummaryPulse(false), 900);
-        summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    };
-    const copySummary = async () => {
-        await navigator.clipboard.writeText(summaryHtml.replace(/<\/?[^>]+(>|$)/g, ""));
-    };
-    const clearSummary = () => setSummaryHtml("");
-
-    /* --- Ask AI --- */
-    const askAi = async () => {
-        const prompt = askText.trim();
-        if (!prompt) return;
-        setAnswerHtml(`<span class="muted">Thinking…</span>`);
-        setAskText("");
-
-        // Handles reply | answer | content | text (your backend returns any of these)
-        const res = await api.post<AskDto>("/Ai/ask", { prompt });
-        const content =
-            res.data.reply ??
-            res.data.answer ??
-            res.data.content ??
-            res.data.text ??
-            "";
-
-        setAnswerHtml(content || '<span class="muted">No answer returned.</span>');
-        setAnswerPulse(true);
-        setTimeout(() => setAnswerPulse(false), 900);
-        askRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    };
-    const copyAnswer = async () => {
-        await navigator.clipboard.writeText(answerHtml.replace(/<\/?[^>]+(>|$)/g, ""));
-    };
-    const clearAnswer = () => setAnswerHtml("");
-
+    /* ------------------------------- render ------------------------------- */
     return (
-        <div className="page">
-            <h1>Patient Portal</h1>
+        <section>
+            {hardBlock}
+            <h2>Patients</h2>
 
-            {/* CREATE */}
-            <div className="card">
-                <div className="section-title">Add Patient</div>
-
-                {/* 6 equal columns, Email stays inside */}
-                <div className="grid grid-6">
-                    {/* First name */}
-                    <div className="field">
-                        <input
-                            placeholder="First name"
-                            value={newP.firstName || ""}
-                            onChange={(e) => setNewP({ ...newP, firstName: e.target.value })}
-                            onBlur={() => markTouched("firstName")}
-                            className={touched.firstName && errors.firstName ? "err" : ""}
-                        />
-                        {touched.firstName && errors.firstName && (
-                            <div className="err-msg">{errors.firstName}</div>
-                        )}
-                    </div>
-
-                    {/* Last name */}
-                    <div className="field">
-                        <input
-                            placeholder="Last name"
-                            value={newP.lastName || ""}
-                            onChange={(e) => setNewP({ ...newP, lastName: e.target.value })}
-                            onBlur={() => markTouched("lastName")}
-                            className={touched.lastName && errors.lastName ? "err" : ""}
-                        />
-                        {touched.lastName && errors.lastName && (
-                            <div className="err-msg">{errors.lastName}</div>
-                        )}
-                    </div>
-
-                    {/* DOB */}
-                    <div className="field">
-                        <input
-                            placeholder="mm / dd / yyyy"
-                            type="date"
-                            value={newP.dateOfBirth || ""}
-                            onChange={(e) => setNewP({ ...newP, dateOfBirth: e.target.value })}
-                            onBlur={() => markTouched("dateOfBirth")}
-                            className={touched.dateOfBirth && errors.dateOfBirth ? "err" : ""}
-                        />
-                        {touched.dateOfBirth && errors.dateOfBirth && (
-                            <div className="err-msg">{errors.dateOfBirth}</div>
-                        )}
-                    </div>
-
-                    {/* Gender */}
-                    <div className="field">
-                        <input
-                            placeholder="Gender"
-                            value={newP.gender || ""}
-                            onChange={(e) => setNewP({ ...newP, gender: e.target.value })}
-                            onBlur={() => markTouched("gender")}
-                            className={touched.gender && errors.gender ? "err" : ""}
-                        />
-                        {touched.gender && errors.gender && (
-                            <div className="err-msg">{errors.gender}</div>
-                        )}
-                    </div>
-
-                    {/* Phone */}
-                    <div className="field">
-                        <input
-                            placeholder="Phone"
-                            value={newP.phone || ""}
-                            onChange={(e) => setNewP({ ...newP, phone: e.target.value })}
-                            onBlur={() => markTouched("phone")}
-                            className={touched.phone && errors.phone ? "err" : ""}
-                        />
-                        {touched.phone && errors.phone && (
-                            <div className="err-msg">{errors.phone}</div>
-                        )}
-                    </div>
-
-                    {/* Email */}
-                    <div className="field">
-                        <input
-                            placeholder="Email"
-                            value={newP.email || ""}
-                            onChange={(e) => setNewP({ ...newP, email: e.target.value })}
-                            onBlur={() => markTouched("email")}
-                            className={touched.email && errors.email ? "err" : ""}
-                        />
-                        {touched.email && errors.email && (
-                            <div className="err-msg">{errors.email}</div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="row">
-                    <button className="btn" onClick={create} disabled={!canCreate}>
-                        Create
-                    </button>
-                    <button className="btn btn--light" onClick={clearNew}>
-                        Clear
-                    </button>
-                </div>
+            {/* search + add */}
+            <div style={{ display: "flex", gap: 8, marginBlock: 16, alignItems: "center" }}>
+                <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search by name, email, phone, gender, or ID…"
+                    style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                />
+                <button
+                    onClick={() => {
+                        setMode("create");
+                        setEditingId(null);
+                        setForm({ firstName: "", lastName: "", email: "", phone: "", gender: "Male", dateOfBirth: "" });
+                        setFormErr("");
+                    }}
+                    className="btn btn--primary"
+                >
+                    Add Patient
+                </button>
             </div>
 
-            {/* EDIT BAR */}
-            {editId !== null && (
-                <div className="row mt-16">
-                    <button className="btn" onClick={update}>Update</button>
-                    <button className="btn btn--light" onClick={cancelEdit}>Cancel</button>
-                    <span className="muted">Editing: #{editId} {joinName(draft)}</span>
-                </div>
-            )}
+            {/* list / table */}
+            <div style={{ padding: 16, border: "1px solid #eee", borderRadius: 8, background: "#fff" }}>
+                {isLoading && <p>Loading…</p>}
+                {isError && <p style={{ color: "crimson" }}>Failed to load patients.</p>}
+                {!isLoading && rows.length === 0 && <p>No patients found.</p>}
 
-            {/* TABLE */}
-            <div className="section-title">Patients</div>
-            <div className="table-wrap card">
-                <table className="table">
-                    <thead>
-                        <tr>
-                            <th style={{ width: 56 }}>Id</th>
-                            <th>Name</th>
-                            <th>DOB</th>
-                            <th>Email</th>
-                            <th>Phone</th>
-                            <th style={{ width: 320 }}>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {patients.map((p) => {
-                            const isEdit = editId === p.id;
-                            const isConfirm = confirmDeleteId === p.id;
-                            return (
-                                <tr key={p.id}>
-                                    <td>{p.id}</td>
-
-                                    {/* Name */}
-                                    <td>
-                                        {!isEdit ? (
-                                            `${p.firstName} ${p.lastName}`
-                                        ) : (
-                                            <div className="row">
-                                                <input
-                                                    style={{ width: 140 }}
-                                                    value={draft.firstName || ""}
-                                                    onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
-                                                    placeholder="First"
-                                                />
-                                                <input
-                                                    style={{ width: 140 }}
-                                                    value={draft.lastName || ""}
-                                                    onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
-                                                    placeholder="Last"
-                                                />
-                                            </div>
-                                        )}
-                                    </td>
-
-                                    {/* DOB */}
-                                    <td>
-                                        {!isEdit ? (
-                                            dateStr(p.dateOfBirth)
-                                        ) : (
-                                            <input
-                                                type="date"
-                                                value={draft.dateOfBirth || ""}
-                                                onChange={(e) => setDraft({ ...draft, dateOfBirth: e.target.value })}
-                                            />
-                                        )}
-                                    </td>
-
-                                    {/* Email */}
-                                    <td>
-                                        {!isEdit ? (
-                                            p.email
-                                        ) : (
-                                            <input
-                                                style={{ width: 220 }}
-                                                value={draft.email || ""}
-                                                onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                                            />
-                                        )}
-                                    </td>
-
-                                    {/* Phone */}
-                                    <td>
-                                        {!isEdit ? (
-                                            p.phone
-                                        ) : (
-                                            <input
-                                                style={{ width: 160 }}
-                                                value={draft.phone || ""}
-                                                onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
-                                            />
-                                        )}
-                                    </td>
-
-                                    {/* Actions */}
-                                    <td>
-                                        <div className="actions">
-                                            {!isEdit ? (
-                                                <button className="btn btn--link" onClick={() => beginEdit(p)}>
-                                                    Edit
-                                                </button>
-                                            ) : (
-                                                <span className="muted">Editing…</span>
-                                            )}
-
-                                            {!isConfirm ? (
-                                                <button className="btn btn--danger" onClick={() => askDelete(p.id)}>
-                                                    Delete
-                                                </button>
-                                            ) : (
-                                                <span className="confirm-inline">
-                                                    <span>Delete this patient?</span>
-                                                    <button className="btn btn--danger" onClick={() => confirmDelete(p.id)}>
-                                                        Confirm
-                                                    </button>
-                                                    <button className="btn btn--light" onClick={cancelDelete}>
-                                                        Cancel
-                                                    </button>
-                                                </span>
-                                            )}
-
-                                            <button className="btn btn--subtle" onClick={() => aiSummary(p)}>
+                {rows.length > 0 && (
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                            <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+                                <th style={{ padding: 8 }}>ID</th>
+                                <th style={{ padding: 8 }}>Name</th>
+                                <th style={{ padding: 8 }}>Email</th>
+                                <th style={{ padding: 8 }}>Phone</th>
+                                <th style={{ padding: 8 }}>Gender</th>
+                                <th style={{ padding: 8, width: 360 }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((p) => (
+                                <tr key={p.id} style={{ borderBottom: "1px solid #f2f2f2" }}>
+                                    <td style={{ padding: 8 }}>{p.id}</td>
+                                    <td style={{ padding: 8 }}>{toFullName(p) || "—"}</td>
+                                    <td style={{ padding: 8 }}>{p.email || "—"}</td>
+                                    <td style={{ padding: 8 }}>{p.phone || "—"}</td>
+                                    <td style={{ padding: 8 }}>{p.gender || "—"}</td>
+                                    <td style={{ padding: 8 }}>
+                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                            <button onClick={() => onEdit(p)} className="btn btn--light btn--thin">Edit</button>
+                                            <button onClick={() => onSummary(p)} className="btn btn--light btn--thin" style={{ fontWeight: 600 }}>
                                                 AI Summary
                                             </button>
+
+                                            {confirmId === p.id ? (
+                                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                                    <span style={{ fontSize: 12, color: "#555" }}>Confirm?</span>
+                                                    <button
+                                                        onClick={() => onConfirmDelete(p.id)}
+                                                        disabled={mDelete.isPending}
+                                                        className="btn btn--danger btn--thin"
+                                                    >
+                                                        {mDelete.isPending ? "Deleting…" : "Yes"}
+                                                    </button>
+                                                    <button onClick={onCancelDelete} className="btn btn--light btn--thin">Cancel</button>
+                                                </div>
+                                            ) : (
+                                                <button onClick={() => onDeleteClick(p)} className="btn btn--danger btn--thin">Delete</button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
-                            );
-                        })}
-                        {!loading && patients.length === 0 && (
-                            <tr>
-                                <td colSpan={6} style={{ textAlign: "center" }}>
-                                    No patients yet.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
 
-            {/* AI SUMMARY PANEL */}
-            <div ref={summaryRef} className="card mt-20">
-                <div className="section-title">🤖 {summaryHeader}</div>
-                <div className="toolbar">
-                    <button className="btn btn--light" onClick={copySummary}>Copy</button>
-                    <button className="btn btn--light" onClick={clearSummary}>Clear</button>
-                </div>
+            {/* AI summary panel */}
+            {summaryFor != null && (
                 <div
-                    className={`summary-box ${summaryPulse ? "pulse" : ""}`}
-                    dangerouslySetInnerHTML={{
-                        __html:
-                            summaryHtml ||
-                            '<span class="muted">No content yet. Click "AI Summary" in the table.</span>',
+                    style={{
+                        marginTop: 16,
+                        padding: 16,
+                        border: "1px solid #dde3ea",
+                        borderRadius: 8,
+                        background: "#fbfdff",
                     }}
-                />
-            </div>
+                >
+                    <h3 style={{ marginTop: 0 }}>AI Patient Summary (ID: {summaryFor})</h3>
+                    <pre
+                        style={{
+                            whiteSpace: "pre-wrap",
+                            margin: 0,
+                            fontFamily: "inherit",
+                            lineHeight: 1.5,
+                        }}
+                    >
+                        {summaryText}
+                    </pre>
+                </div>
+            )}
 
-            {/* ASK AI */}
-            <div ref={askRef} className="card mt-20">
-                <div className="section-title">Ask the AI (generic)</div>
-                <div className="ask-row">
-                    <textarea
-                        placeholder="Ask anything…"
-                        value={askText}
-                        onChange={(e) => setAskText(e.target.value)}
-                    />
-                    <button className="btn" onClick={askAi}>Ask</button>
-                </div>
-                <div className="toolbar">
-                    <button className="btn btn--light" onClick={copyAnswer}>Copy</button>
-                    <button className="btn btn--light" onClick={clearAnswer}>Clear</button>
-                </div>
-                <div
-                    className={`answer-box ${answerPulse ? "pulse" : ""}`}
-                    dangerouslySetInnerHTML={{
-                        __html: answerHtml || '<span class="muted">No answer returned.</span>',
+            {/* drawer-ish add/edit form */}
+            {mode !== "idle" && (
+                <form
+                    onSubmit={onSubmit}
+                    style={{
+                        marginTop: 16,
+                        padding: 16,
+                        border: "1px solid #dde3ea",
+                        borderRadius: 8,
+                        background: "#fbfdff",
                     }}
-                />
-            </div>
-        </div>
+                >
+                    <h3 style={{ marginTop: 0 }}>{mode === "create" ? "Add Patient" : `Edit Patient #${editingId}`}</h3>
+
+                    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
+                        <label style={{ display: "grid", gap: 6 }}>
+                            <span>First name *</span>
+                            <input
+                                value={form.firstName ?? ""}
+                                onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+                                required
+                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                            />
+                        </label>
+
+                        <label style={{ display: "grid", gap: 6 }}>
+                            <span>Last name *</span>
+                            <input
+                                value={form.lastName ?? ""}
+                                onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+                                required
+                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                            />
+                        </label>
+
+                        <label style={{ display: "grid", gap: 6 }}>
+                            <span>Email</span>
+                            <input
+                                type="email"
+                                value={form.email ?? ""}
+                                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                            />
+                        </label>
+
+                        <label style={{ display: "grid", gap: 6 }}>
+                            <span>Phone</span>
+                            <input
+                                value={form.phone ?? ""}
+                                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                            />
+                        </label>
+
+                        <label style={{ display: "grid", gap: 6 }}>
+                            <span>Gender</span>
+                            <select
+                                value={form.gender ?? "Male"}
+                                onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
+                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                            >
+                                <option>Male</option>
+                                <option>Female</option>
+                                <option>Other</option>
+                            </select>
+                        </label>
+
+                        <label style={{ display: "grid", gap: 6 }}>
+                            <span>Date of birth *</span>
+                            <input
+                                type="date"
+                                value={form.dateOfBirth ?? ""}
+                                onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                                required
+                                min="1900-01-01"
+                                max={todayStr}
+                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                            />
+                        </label>
+                    </div>
+
+                    {formErr && <div style={{ color: "#b91c1c", marginTop: 8, fontSize: 13 }}>{formErr}</div>}
+
+                    <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                        <button
+                            type="submit"
+                            disabled={mCreate.isPending || mUpdate.isPending}
+                            className="btn btn--primary"
+                        >
+                            {mode === "create" ? "Create" : "Save Changes"}
+                        </button>
+
+                        {/* NOTE: explicit text + visible color so it can’t appear “blank” */}
+                        <button
+                            type="button"
+                            onClick={resetForm}
+                            className="btn btn--light"
+                            title="Cancel and close the form"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            )}
+        </section>
     );
 }

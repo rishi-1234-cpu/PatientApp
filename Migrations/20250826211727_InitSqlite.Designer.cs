@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PatientApi.Data;
 
+
 #nullable disable
 
 namespace PatientApi.Migrations

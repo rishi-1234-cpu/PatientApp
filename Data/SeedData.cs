@@ -1,6 +1,7 @@
 ﻿using PatientApi.Data;
 using PatientApi.Model;
 
+
 namespace PatientApi.Data;
 
 public static class SeedData

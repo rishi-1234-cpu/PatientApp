@@ -1,4 +1,5 @@
-﻿using System;
+﻿using PatientApi.Model;
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace PatientApi.Model
@@ -7,25 +8,18 @@ namespace PatientApi.Model
     {
         public int Id { get; set; }
 
-        [Required]
-        [MaxLength(255)]
-        public string FirstName { get; set; }
-
-        [Required]
-        [MaxLength(255)]
-        public string LastName { get; set; }
-
+        public string FirstName { get; set; } = default!;
+        public string LastName { get; set; } = default!;
         public DateTime DateOfBirth { get; set; }
+        public DateTime CreatedAt{ get; set; }
+        public string Gender { get; set; } = default!;
+        public string Email { get; set; } = default!;
+        public string Phone { get; set; } = default!;
 
-        [MaxLength(50)]
-        public string Gender { get; set; }
-
-        [MaxLength(20)]
-        public string Phone { get; set; }
-
-        [MaxLength(255)]
-        public string Email { get; set; }
-
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        // Optional: navigation collections
+        public ICollection<Admission>? Admissions { get; set; }
+        public ICollection<Vital>? Vitals { get; set; }
+        public ICollection<Discharge> Discharges { get; } = new List<Discharge>();
+        public ICollection<Billing> Billings { get; } = new List<Billing>();
     }
 }

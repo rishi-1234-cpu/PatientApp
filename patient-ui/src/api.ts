@@ -1,25 +1,38 @@
 // src/api.ts
 import axios from "axios";
 
-/**
-* Base rules:
-* - If VITE_API_URL is set, we use it (recommended).
-* - Otherwise, when running Vite on 5173, we default to https://localhost:7100 (Kestrel HTTPS).
-* - For any other host (e.g., deployed), we use the current origin.
-* - We always append /api.
-*/
+// Backend base URL (DEV): change here if your API port changes
+// Prefer the .env value; otherwise default to https://localhost:7100
 const rawBase =
-    import.meta.env.VITE_API_URL ??
-    (window.location.port === "5173"
-        ? "https://localhost:7100"
-        : window.location.origin);
+    import.meta.env.VITE_API_URL || "https://localhost:7100";
 
-const base = `${rawBase.replace(/\/$/, "")}/api`;
+// Always end with /api
+const baseURL = `${rawBase.replace(/\/$/, "")}/api`;
 
+// Optional API key (not required for JWT auth)
+const apiKey = import.meta.env.VITE_API_KEY || "";
+
+// Where we store the JWT
+export const JWT_STORAGE_KEY =
+    import.meta.env.VITE_JWT_STORAGE_KEY || "jwt";
+
+// Axios instance
 const api = axios.create({
-    baseURL: base,
-    headers: { "Content-Type": "application/json" },
+    baseURL,
+    headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { "x-api-key": apiKey } : {}),
+    },
     withCredentials: false,
+});
+
+// Attach Bearer automatically if present
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem(JWT_STORAGE_KEY);
+    if (token) {
+        (config.headers ||= {}).Authorization = `Bearer ${token}`;
+    }
+    return config;
 });
 
 export default api;

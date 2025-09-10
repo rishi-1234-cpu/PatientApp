@@ -4,6 +4,7 @@ using PatientApi.Data;
 using PatientApi.Model;
 using PatientApi.Services;
 
+
 namespace PatientApi.Controllers
 {
     [ApiController]
@@ -38,7 +39,7 @@ namespace PatientApi.Controllers
             if (patient == null) return NotFound();
             return Ok(patient);
         }
-
+      
         // POST: api/Patient
         [HttpPost]
         public async Task<ActionResult<Patient>> Create([FromBody] Patient patient, CancellationToken ct)
