@@ -17,9 +17,10 @@ namespace PatientApi.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            // Keep Identity mappings
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity((Admission a) => { });
+            // --- Relationships ---
 
             modelBuilder.Entity<Admission>()
             .HasOne(a => a.Patient)
@@ -57,6 +58,7 @@ namespace PatientApi.Data
             .HasForeignKey(b => b.AdmissionId)
             .OnDelete(DeleteBehavior.Cascade);
 
+            // Chat message table
             modelBuilder.Entity<ChatMessage>(e =>
             {
                 e.ToTable("ChatMessages");
