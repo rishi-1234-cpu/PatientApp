@@ -1,8 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
-using PatientApi.Model;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
+using PatientApi.Model;
 
 public class Admission
 {
@@ -11,21 +13,21 @@ public class Admission
     [Required]
     public int PatientId { get; set; }
 
-    [JsonIgnore] // don't bind from JSON
-    [ValidateNever] // don't validate
+    [JsonIgnore, ValidateNever]
     [ForeignKey(nameof(PatientId))]
-    public Patient? Patient { get; set; } // make it nullable
+    public Patient? Patient { get; set; }
 
     [Required]
     public DateTime AdmissionDate { get; set; }
     public DateTime? DischargeDate { get; set; }
+
     public string? Reason { get; set; }
     public string? Ward { get; set; }
     public string? BedNumber { get; set; }
     public string? DoctorName { get; set; }
     public string? Notes { get; set; }
-    public Discharge? Discharge { get; set; }
-    public Billing? Billing { get; set; }
+
+    // ✅ Keep ONLY the collections to avoid shadow FKs like AdmissionId1
     public ICollection<Discharge> Discharges { get; } = new List<Discharge>();
-    public ICollection<Billing>Billings { get; } = new List<Billing>();
+    public ICollection<Billing> Billings { get; } = new List<Billing>();
 }

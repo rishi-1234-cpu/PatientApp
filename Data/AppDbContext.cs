@@ -4,11 +4,10 @@ using PatientApi.Model;
 
 namespace PatientApi.Data
 {
-    public class AppDbContext : IdentityDbContext<ApplicationUser> // ✅ Added Identity support
+    public class AppDbContext : IdentityDbContext<ApplicationUser>
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-        // Your existing tables
         public DbSet<Patient> Patients => Set<Patient>();
         public DbSet<Admission> Admissions => Set<Admission>();
         public DbSet<Vital> Vitals => Set<Vital>();
@@ -18,10 +17,10 @@ namespace PatientApi.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // Keep Identity table mapping
             base.OnModelCreating(modelBuilder);
 
-            // Your existing entity relationships
+            modelBuilder.Entity((Admission a) => { });
+
             modelBuilder.Entity<Admission>()
             .HasOne(a => a.Patient)
             .WithMany(p => p.Admissions)

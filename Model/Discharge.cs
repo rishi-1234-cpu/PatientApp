@@ -1,8 +1,8 @@
 ﻿using System;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace PatientApi.Model
 {
@@ -11,14 +11,14 @@ namespace PatientApi.Model
         [Key] public int Id { get; set; }
 
         [Required] public int PatientId { get; set; }
-        [JsonIgnore, ValidateNever] // <— add
+        [JsonIgnore, ValidateNever]
         [ForeignKey(nameof(PatientId))]
-        public Patient? Patient { get; set; } = null;
+        public Patient? Patient { get; set; }
 
         [Required] public int AdmissionId { get; set; }
-        [JsonIgnore, ValidateNever] // <— add
+        [JsonIgnore, ValidateNever]
         [ForeignKey(nameof(AdmissionId))]
-        public Admission? Admission { get; set; } = null;
+        public Admission? Admission { get; set; }
 
         [Required] public DateTime DischargeDate { get; set; } = DateTime.UtcNow;
 
@@ -28,5 +28,4 @@ namespace PatientApi.Model
 
         public decimal? OutstandingAmount { get; set; }
     }
-
 }

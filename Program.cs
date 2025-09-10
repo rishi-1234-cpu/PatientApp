@@ -1,7 +1,7 @@
 ﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.HttpOverrides; // <-- add
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -54,14 +54,21 @@ builder.Services.AddSwaggerGen(c =>
 
 // ---- EF Core / SQLite (persist to /var/data on Render) ----
 var defaultCs = cfg.GetConnectionString("Default")!;
-var renderDiskPath = "/var/data/patient.db";
-var isRender = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RENDER"));
-var connStr = isRender
-? $"Data Source={renderDiskPath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True"
+var sqlitePath = Environment.GetEnvironmentVariable("SQLITE_PATH") ?? "/var/data/patient.db";
+
+// Ensure the directory exists (fixes “unable to open database file”)
+try
+{
+    var dir = Path.GetDirectoryName(sqlitePath);
+    if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+}
+catch { /* ignore */ }
+
+var connStr = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RENDER"))
+? $"Data Source={sqlitePath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True"
 : defaultCs;
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-options.UseSqlite(connStr));
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite(connStr));
 
 // ---- Identity + Roles ----
 builder.Services
@@ -107,18 +114,13 @@ builder.Services
 });
 builder.Services.AddAuthorization();
 
-// ---- OpenAI chat service (keys via env preferred) ----
+// ---- OpenAI chat service ----
 builder.Services.AddScoped<IOpenAIChatService, OpenAIChatService>();
 builder.Services.AddHttpClient<IOpenAIChatService, OpenAIChatService>();
 
 // ---- CORS (use FRONTEND_URL env var) ----
 var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL");
-// You can list fallbacks if needed:
-var allowedOrigins = new List<string>
-{
-"http://localhost:5173",
-"https://localhost:5173"
-};
+var allowedOrigins = new List<string> { "http://localhost:5173", "https://localhost:5173" };
 if (!string.IsNullOrWhiteSpace(frontendUrl)) allowedOrigins.Add(frontendUrl);
 
 builder.Services.AddCors(options =>
@@ -160,27 +162,19 @@ PRAGMA synchronous=NORMAL;
 PRAGMA busy_timeout=5000;";
         await cmd.ExecuteNonQueryAsync();
     }
-    catch { /* non-fatal for dev */ }
+    catch { }
 
     SeedData.EnsureSeeded(db);
     await IdentitySeed.EnsureIdentitySeedAsync(sp);
 }
 
 // ===== Pipeline =====
-// (Optionally guard swagger)
-// if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
-// Forwarded headers before redirects/auth
 app.UseForwardedHeaders();
-
 app.UseHttpsRedirection();
-
 app.UseCors("_allowClient");
-
 app.UseAuthentication();
 
 // ApiKey only for unauthenticated
@@ -192,8 +186,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
 
-// Serve static files only if you plan single-service hosting of React.
-// If frontend is a separate Render Static Site, you may comment these out.
+// If serving React separately, keep these commented.
 // app.UseDefaultFiles();
 // app.UseStaticFiles();
 // app.MapFallbackToFile("index.html");
