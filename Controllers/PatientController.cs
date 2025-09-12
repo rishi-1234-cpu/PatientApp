@@ -4,11 +4,11 @@ using PatientApi.Data;
 using PatientApi.Model;
 using PatientApi.Services;
 
-
 namespace PatientApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Produces("application/json")]
     public class PatientController : ControllerBase
     {
         private readonly AppDbContext _db;
@@ -19,6 +19,10 @@ namespace PatientApi.Controllers
             _db = db;
             _ai = ai;
         }
+
+        // =========================
+        // CRUD
+        // =========================
 
         // GET: api/Patient
         [HttpGet]
@@ -39,7 +43,7 @@ namespace PatientApi.Controllers
             if (patient == null) return NotFound();
             return Ok(patient);
         }
-      
+
         // POST: api/Patient
         [HttpPost]
         public async Task<ActionResult<Patient>> Create([FromBody] Patient patient, CancellationToken ct)
@@ -87,6 +91,10 @@ namespace PatientApi.Controllers
             return NoContent();
         }
 
+        // =========================
+        // AI summary (existing)
+        // =========================
+
         // GET: api/Patient/5/summary -> uses OpenAI to summarize the patient
         [HttpGet("{id:int}/summary")]
         public async Task<IActionResult> GetSummary(int id, CancellationToken ct)
@@ -104,6 +112,51 @@ namespace PatientApi.Controllers
 
             var reply = await _ai.AskAsync(prompt, ct);
             return Ok(new { id = p.Id, summary = reply });
+        }
+
+        // =========================
+        // NEW: Latest vitals for Autofill
+        // =========================
+
+        // GET: api/Patient/5/vitals-latest
+        [HttpGet("{id:int}/vitals-latest")]
+        public async Task<IActionResult> GetLatestVitals(int id, CancellationToken ct)
+        {
+            // latest single row
+            var latest = await _db.Vitals.AsNoTracking()
+            .Where(v => v.PatientId == id)
+            .OrderByDescending(v => v.TakenAt)
+            .Select(v => new
+            {
+                recordedAt = v.TakenAt,
+                tempC = v.Temperature,
+                pulse = v.Pulse,
+                respRate = v.RespRate,
+                systolic = v.Systolic,
+                diastolic = v.Diastolic,
+                spO2 = v.SpO2
+            })
+            .FirstOrDefaultAsync(ct);
+
+            // last 3 rows as small history (optional)
+            var history = await _db.Vitals.AsNoTracking()
+            .Where(v => v.PatientId == id)
+            .OrderByDescending(v => v.TakenAt)
+            .Take(3)
+            .Select(v => new
+            {
+                recordedAt = v.TakenAt,
+                tempC = v.Temperature,
+                pulse = v.Pulse,
+                respRate = v.RespRate,
+                systolic = v.Systolic,
+                diastolic = v.Diastolic,
+                spO2 = v.SpO2,
+                notes = v.Notes
+            })
+            .ToListAsync(ct);
+
+            return Ok(new { latest, history });
         }
     }
 }
