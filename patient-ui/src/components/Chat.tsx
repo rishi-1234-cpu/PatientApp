@@ -2,14 +2,37 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    makeHubConnection,
     getRecent,
     sendMessageHttp,
     type ChatCreateDto,
     type ChatMessage,
 } from "../Services/chat";
+import {
+    HubConnection,
+    HubConnectionBuilder,
+    LogLevel,
+    HttpTransportType,
+} from "@microsoft/signalr";
 
 type ConnState = "idle" | "connecting" | "connected" | "reconnecting" | "disconnected";
+
+/** Resolve hub URL from Vite env, e.g. https://patient-portal-api-ny3y.onrender.com */
+const API_BASE =
+    (import.meta as any)?.env?.VITE_API_URL?.replace(/\/+$/, "") || "";
+const HUB_URL = `${API_BASE}/hubs/chat`;
+
+function buildConnection(): HubConnection {
+    return new HubConnectionBuilder()
+        .withUrl(HUB_URL, {
+            // Render works best with direct WebSockets from the static site
+            transport: HttpTransportType.WebSockets,
+            skipNegotiation: true,
+            withCredentials: true,
+        })
+        .withAutomaticReconnect([0, 2000, 5000, 10000])
+        .configureLogging(LogLevel.Information)
+        .build();
+}
 
 export default function Chat() {
     const qc = useQueryClient();
@@ -22,7 +45,7 @@ export default function Chat() {
 
     // ---- connection state ----
     const [connState, setConnState] = useState<ConnState>("idle");
-    const hubRef = useRef<ReturnType<typeof makeHubConnection> | null>(null);
+    const hubRef = useRef<HubConnection | null>(null);
     const prevRoomRef = useRef<string>("lobby");
 
     // ---- history (cache per room) ----
@@ -36,7 +59,6 @@ export default function Chat() {
         staleTime: 0,
         refetchOnReconnect: true,
         refetchOnWindowFocus: false,
-        // v5 replacement for keepPreviousData
         placeholderData: (prev) => prev,
     });
 
@@ -59,11 +81,13 @@ export default function Chat() {
 
             // stop old conn if any
             if (hubRef.current) {
-                try { await hubRef.current.stop(); } catch { }
+                try {
+                    await hubRef.current.stop();
+                } catch { }
                 hubRef.current = null;
             }
 
-            const hub = makeHubConnection();
+            const hub = buildConnection();
             hubRef.current = hub;
 
             hub.onreconnecting(() => setConnState("reconnecting"));
@@ -85,19 +109,33 @@ export default function Chat() {
 
                 // join the initial room
                 prevRoomRef.current = room;
-                try { await hub.invoke("JoinRoom", room); } catch { }
+                try {
+                    await hub.invoke("JoinRoom", room);
+                } catch (e) {
+                    console.warn("JoinRoom failed:", e);
+                }
 
                 // fetch history for initial room
                 await refetch();
-            } catch {
+            } catch (e) {
+                console.error("SignalR start failed:", e);
                 if (mounted) setConnState("disconnected");
             }
         }
 
         start();
 
+        // re-try on tab focus if disconnected
+        const onFocus = () => {
+            if (hubRef.current && hubRef.current.state !== "Connected") {
+                start();
+            }
+        };
+        window.addEventListener("focus", onFocus);
+
         return () => {
             mounted = false;
+            window.removeEventListener("focus", onFocus);
             const hub = hubRef.current;
             hubRef.current = null;
             if (hub) {
@@ -116,13 +154,17 @@ export default function Chat() {
 
             const prev = prevRoomRef.current;
             if (prev && prev !== room) {
-                try { await hub.invoke("LeaveRoom", prev); } catch { }
+                try {
+                    await hub.invoke("LeaveRoom", prev);
+                } catch { }
             }
             try {
                 await hub.invoke("JoinRoom", room);
                 prevRoomRef.current = room;
                 await refetch();
-            } catch { }
+            } catch (e) {
+                console.warn("JoinRoom on room change failed:", e);
+            }
         };
         run();
     }, [room, refetch]);
@@ -131,19 +173,19 @@ export default function Chat() {
     const mSend = useMutation({
         mutationFn: (payload: ChatCreateDto) => sendMessageHttp(payload),
         onSuccess: async (saved) => {
-            // optimistic update to current room
             const r = saved.room ?? room;
             qc.setQueryData<ChatMessage[]>(["chat", r], (prev) =>
                 prev ? [...prev, saved] : [saved]
             );
             setText("");
-
-            // safety net (ensure parity across tabs)
-            setTimeout(() => { refetch(); }, 50);
+            setTimeout(() => {
+                refetch();
+            }, 50);
         },
     });
 
-    const canSend = text.trim().length > 0 && connState === "connected" && !mSend.isPending;
+    const canSend =
+        text.trim().length > 0 && connState === "connected" && !mSend.isPending;
 
     function onSubmit(e: React.FormEvent) {
         e.preventDefault();
