@@ -14,18 +14,18 @@ using PatientApi.Services;
 var builder = WebApplication.CreateBuilder(args);
 var cfg = builder.Configuration;
 
-// -------- Render/PORT binding --------
+// Bind Render port if provided
 var port = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrWhiteSpace(port))
 {
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 }
 
-// ===== Services =====
+// Services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// ---- Swagger ----
+// Swagger (unchanged)
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Patient API", Version = "v1" });
@@ -52,25 +52,21 @@ builder.Services.AddSwaggerGen(c =>
 });
 });
 
-// ---- EF Core / SQLite (persist to /var/data on Render) ----
+// EF Core / SQLite (unchanged except ensured directory creation)
 var defaultCs = cfg.GetConnectionString("Default")!;
 var sqlitePath = Environment.GetEnvironmentVariable("SQLITE_PATH") ?? "/var/data/patient.db";
-
-// Ensure the directory exists (fixes “unable to open database file”)
 try
 {
     var dir = Path.GetDirectoryName(sqlitePath);
     if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir!);
 }
 catch { /* ignore */ }
-
 var connStr = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RENDER"))
 ? $"Data Source={sqlitePath};Cache=Shared;Mode=ReadWriteCreate;Pooling=True"
 : defaultCs;
-
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite(connStr));
 
-// ---- Identity + Roles ----
+// Identity + Roles
 builder.Services
 .AddIdentityCore<ApplicationUser>(o =>
 {
@@ -84,7 +80,7 @@ builder.Services
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// ---- JWT Auth (overridable via env) ----
+// JWT
 var jwtSection = cfg.GetSection("Jwt");
 var jwtKey = Environment.GetEnvironmentVariable("JWT__KEY")
 ?? jwtSection.GetValue<string>("Key")
@@ -114,15 +110,14 @@ builder.Services
 });
 builder.Services.AddAuthorization();
 
-// ---- OpenAI chat service ----
+// OpenAI + SignalR
 builder.Services.AddScoped<IOpenAIChatService, OpenAIChatService>();
 builder.Services.AddHttpClient<IOpenAIChatService, OpenAIChatService>();
+builder.Services.AddSignalR();
 
-// ---- CORS (add your deployed frontend + safe Render previews) ----
+// CORS — allow localhost + your static site + Render previews
 var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL");
-// Your static site URL on Render:
 const string deployedFrontend = "https://patient-portal-ipd.onrender.com";
-
 var explicitAllowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
 "http://localhost:5173",
@@ -135,23 +130,21 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("_allowClient", policy =>
     policy
-    // allow our explicit list AND any *.onrender.com preview for this app
     .SetIsOriginAllowed(origin =>
     {
         if (string.IsNullOrEmpty(origin)) return false;
         if (explicitAllowed.Contains(origin)) return true;
+        // allow Render preview branches of *your* app
         return origin.EndsWith(".onrender.com", StringComparison.OrdinalIgnoreCase);
     })
     .AllowAnyHeader()
     .AllowAnyMethod()
-    .AllowCredentials()
+    // No cookies are used; credentials not required
+    //.AllowCredentials()
     );
 });
 
-// ---- SignalR ----
-builder.Services.AddSignalR();
-
-// ---- Forwarded Headers (Render proxy) ----
+// Forwarded headers for Render proxy
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -159,32 +152,26 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 
 var app = builder.Build();
 
-// ===== DB migrate + seed =====
+// Migrate/seed (unchanged)
 using (var scope = app.Services.CreateScope())
 {
     var sp = scope.ServiceProvider;
     var db = sp.GetRequiredService<AppDbContext>();
-
     try { db.Database.Migrate(); } catch { db.Database.EnsureCreated(); }
-
     try
     {
         var conn = db.Database.GetDbConnection();
         await conn.OpenAsync();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
-PRAGMA journal_mode=WAL;
-PRAGMA synchronous=NORMAL;
-PRAGMA busy_timeout=5000;";
+        cmd.CommandText = @"PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;";
         await cmd.ExecuteNonQueryAsync();
     }
-    catch { /* non-fatal */ }
-
+    catch { }
     SeedData.EnsureSeeded(db);
     await IdentitySeed.EnsureIdentitySeedAsync(sp);
 }
 
-// ===== Pipeline =====
+// Pipeline (order matters)
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -194,19 +181,12 @@ app.UseHttpsRedirection();
 app.UseCors("_allowClient");
 
 app.UseAuthentication();
-
-// ApiKey only for unauthenticated
 app.UseWhen(ctx => !(ctx.User?.Identity?.IsAuthenticated ?? false),
-branch => branch.UseMiddleware<ApiKeyMiddleware>());
-
+branch => branch.UseMiddleware<ApiKeyMiddleware>()); // for unauthenticated endpoints (login)
 app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
 
-// If serving React separately, keep these commented.
-// app.UseDefaultFiles();
-// app.UseStaticFiles();
-// app.MapFallbackToFile("index.html");
-
+// Serving SPA is handled by the static site on Render
 await app.RunAsync();
