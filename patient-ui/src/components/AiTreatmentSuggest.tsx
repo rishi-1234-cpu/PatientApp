@@ -76,12 +76,12 @@ export default function AiTreatmentSuggest() {
             }
             setForm((f) => ({
                 ...f,
-                tempC: r.latest.tempC ?? f.tempC,
-                pulse: r.latest.pulse ?? f.pulse,
-                respRate: r.latest.respRate ?? f.respRate,
-                systolic: r.latest.systolic ?? f.systolic,
-                diastolic: r.latest.diastolic ?? f.diastolic,
-                spO2: r.latest.spO2 ?? f.spO2,
+                tempC: r.latest?.tempC ?? f.tempC,
+                pulse: r.latest?.pulse ?? f.pulse,
+                respRate: r.latest?.respRate ?? f.respRate,
+                systolic: r.latest?.systolic ?? f.systolic,
+                diastolic: r.latest?.diastolic ?? f.diastolic,
+                spO2: r.latest?.spO2 ?? f.spO2,
             }));
             const when = new Date(r.latest.recordedAt);
             setBanner({
@@ -400,7 +400,6 @@ function Field({
         >
             <span>{label}</span>
             <div style={{ display: "flex" }}>
-                {/* apply consistent input styling */}
                 <div style={{ width: "100%" }}>{cloneWithInputStyle(children as any)}</div>
             </div>
         </label>
@@ -416,7 +415,6 @@ function cloneWithInputStyle(el: any) {
         width: "100%",
     } as const;
 
-    // If children is a <div> wrapping an input/button row, just keep it
     if (el.type === "div") return el;
 
     return { ...el, props: { ...el.props, style: { ...baseStyle, ...(el.props?.style || {}) } } };
