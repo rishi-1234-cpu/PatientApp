@@ -36,7 +36,7 @@ export default function Login() {
 
     return (
         <div style={styles.page}>
-            {/* Brand header */}
+            {/* Brand */}
             <div style={styles.brandRow} aria-hidden>
                 <div style={styles.logo}>🏥</div>
                 <div>
@@ -46,7 +46,7 @@ export default function Login() {
             </div>
 
             {/* Card */}
-            <form onSubmit={onSubmit} style={styles.card} aria-label="IPD login form">
+            <form onSubmit={onSubmit} style={styles.card} aria-label="IPD login form" noValidate>
                 <div style={styles.header}>
                     <h1 style={styles.h1}>Login</h1>
                     <p style={styles.muted}>Enter your username and password to continue.</p>
@@ -59,6 +59,11 @@ export default function Login() {
                         onChange={(e) => setUserName(e.target.value)}
                         placeholder="e.g. alice.smith"
                         autoComplete="username"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        inputMode="email"
+                        enterKeyHint="next"
                         style={styles.input}
                     />
                 </label>
@@ -71,11 +76,16 @@ export default function Login() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             autoComplete="current-password"
-                            // IMPORTANT: more right padding so text doesn't go under the button
-                            style={{ ...styles.input, paddingRight: 56 }}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            enterKeyHint="done"
+                            // enough room so text never sits under the toggle button
+                            style={{ ...styles.input, paddingRight: 64 }}
                         />
                         <button
                             type="button"
+                            onMouseDown={(e) => e.preventDefault()} // keep focus in the input (mobile-safe)
                             onClick={() => setShowPwd((s) => !s)}
                             aria-label={showPwd ? "Hide password" : "Show password"}
                             className="pwToggle"
@@ -112,9 +122,7 @@ export default function Login() {
                 </button>
 
                 <div style={styles.footerNote}>
-                    <small style={styles.muted}>
-                        Forgot your password? Contact your IPD administrator.
-                    </small>
+                    <small style={styles.muted}>Forgot your password? Contact your IPD administrator.</small>
                 </div>
             </form>
         </div>
@@ -130,25 +138,12 @@ const styles: Record<string, React.CSSProperties> = {
         justifyItems: "center",
         gap: 18,
         padding: 24,
-        background:
-            "linear-gradient(135deg, rgba(25,118,210,.12), rgba(76,175,80,.10))",
+        background: "linear-gradient(135deg, rgba(25,118,210,.12), rgba(76,175,80,.10))",
     },
-    brandRow: {
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        userSelect: "none",
-    },
+    brandRow: { display: "flex", alignItems: "center", gap: 12, userSelect: "none" },
     logo: {
-        width: 44,
-        height: 44,
-        display: "grid",
-        placeItems: "center",
-        fontSize: 28,
-        borderRadius: 12,
-        background: "#fff",
-        border: "1px solid #e6eef8",
-        boxShadow: "0 8px 22px rgba(12, 53, 92, .10)",
+        width: 44, height: 44, display: "grid", placeItems: "center", fontSize: 28, borderRadius: 12,
+        background: "#fff", border: "1px solid #e6eef8", boxShadow: "0 8px 22px rgba(12, 53, 92, .10)",
     },
     brandTitle: { fontSize: 22, fontWeight: 800 },
     brandSub: { color: "#60707f", marginTop: 2, fontSize: 13 },
@@ -175,9 +170,12 @@ const styles: Record<string, React.CSSProperties> = {
         border: "1px solid #dfe7ef",
         outline: "none",
         background: "#fcfdff",
+        fontSize: 16, // avoids iOS zoom on focus
+        width: "100%",
+        boxSizing: "border-box",
     },
 
-    // ★ Bigger, tappable eye button with light border/background
+    // Bigger, tappable eye button with subtle background/border
     eyeBtn: {
         position: "absolute",
         right: 8,
@@ -212,8 +210,7 @@ const styles: Record<string, React.CSSProperties> = {
         padding: "12px 14px",
         borderRadius: 10,
         border: 0,
-        background:
-            "linear-gradient(135deg, rgba(25,118,210,1), rgba(33,150,243,1))",
+        background: "linear-gradient(135deg, rgba(25,118,210,1), rgba(33,150,243,1))",
         color: "#fff",
         fontWeight: 800,
         cursor: "pointer",
@@ -232,7 +229,7 @@ const styles: Record<string, React.CSSProperties> = {
     },
 };
 
-/* Inject tiny CSS for spinner + mobile padding bump */
+/* One-time global CSS for spinner + mobile padding bump */
 const styleElId = "__ipd_login_extras";
 if (!document.getElementById(styleElId)) {
     const el = document.createElement("style");
@@ -240,7 +237,8 @@ if (!document.getElementById(styleElId)) {
     el.textContent = `
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @media (max-width: 480px) {
-.pwWrap input { padding-right: 62px !important; } /* extra room under eye button on phones */
+.pwWrap input { padding-right: 72px !important; } /* extra room under the eye button on phones */
+.pwToggle { height: 44px !important; min-width: 44px !important; } /* slightly bigger tap target */
 }
 `;
     document.head.appendChild(el);
