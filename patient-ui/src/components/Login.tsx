@@ -65,21 +65,25 @@ export default function Login() {
 
                 <label style={styles.field}>
                     <span style={styles.label}>Password</span>
-                    <div style={{ position: "relative" }}>
+                    <div className="pwWrap" style={{ position: "relative" }}>
                         <input
                             type={showPwd ? "text" : "password"}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             autoComplete="current-password"
-                            style={{ ...styles.input, paddingRight: 44 }}
+                            // IMPORTANT: more right padding so text doesn't go under the button
+                            style={{ ...styles.input, paddingRight: 56 }}
                         />
                         <button
                             type="button"
                             onClick={() => setShowPwd((s) => !s)}
                             aria-label={showPwd ? "Hide password" : "Show password"}
+                            className="pwToggle"
                             style={styles.eyeBtn}
                         >
-                            {showPwd ? "🙈" : "👁️"}
+                            <span aria-hidden="true" style={{ fontSize: 16 }}>
+                                {showPwd ? "🙈" : "👁️"}
+                            </span>
                         </button>
                     </div>
                 </label>
@@ -117,7 +121,7 @@ export default function Login() {
     );
 }
 
-/* ---------- Styles (inline for zero-dependency) ---------- */
+/* ---------- Styles ---------- */
 const styles: Record<string, React.CSSProperties> = {
     page: {
         minHeight: "100vh",
@@ -172,16 +176,25 @@ const styles: Record<string, React.CSSProperties> = {
         outline: "none",
         background: "#fcfdff",
     },
+
+    // ★ Bigger, tappable eye button with light border/background
     eyeBtn: {
         position: "absolute",
         right: 8,
         top: "50%",
         transform: "translateY(-50%)",
-        border: 0,
-        background: "transparent",
+        height: 40,
+        minWidth: 40,
+        padding: 0,
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        background: "#fff",
         cursor: "pointer",
-        fontSize: 18,
-        lineHeight: 1,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 1px 2px rgba(0,0,0,.06)",
+        touchAction: "manipulation",
     },
 
     error: {
@@ -219,11 +232,16 @@ const styles: Record<string, React.CSSProperties> = {
     },
 };
 
-/* tiny keyframes for the spinner (injected once) */
-const styleElId = "__ipd_login_spinner";
+/* Inject tiny CSS for spinner + mobile padding bump */
+const styleElId = "__ipd_login_extras";
 if (!document.getElementById(styleElId)) {
     const el = document.createElement("style");
     el.id = styleElId;
-    el.textContent = `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
+    el.textContent = `
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (max-width: 480px) {
+.pwWrap input { padding-right: 62px !important; } /* extra room under eye button on phones */
+}
+`;
     document.head.appendChild(el);
 }
