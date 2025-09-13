@@ -52,7 +52,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 });
 
-// EF Core / SQLite (unchanged except ensured directory creation)
+// EF Core / SQLite
 var defaultCs = cfg.GetConnectionString("Default")!;
 var sqlitePath = Environment.GetEnvironmentVariable("SQLITE_PATH") ?? "/var/data/patient.db";
 try
@@ -139,8 +139,7 @@ builder.Services.AddCors(options =>
     })
     .AllowAnyHeader()
     .AllowAnyMethod()
-    // No cookies are used; credentials not required
-    //.AllowCredentials()
+    .AllowCredentials() // ✅ Added for SignalR
     );
 });
 
@@ -152,7 +151,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 
 var app = builder.Build();
 
-// Migrate/seed (unchanged)
+// Migrate/seed
 using (var scope = app.Services.CreateScope())
 {
     var sp = scope.ServiceProvider;
@@ -182,11 +181,10 @@ app.UseCors("_allowClient");
 
 app.UseAuthentication();
 app.UseWhen(ctx => !(ctx.User?.Identity?.IsAuthenticated ?? false),
-branch => branch.UseMiddleware<ApiKeyMiddleware>()); // for unauthenticated endpoints (login)
+branch => branch.UseMiddleware<ApiKeyMiddleware>());
 app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
 
-// Serving SPA is handled by the static site on Render
 await app.RunAsync();
