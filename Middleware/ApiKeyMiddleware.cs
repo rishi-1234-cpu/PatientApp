@@ -2,24 +2,27 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 
 namespace PatientApi.Middleware
 {
     /// <summary>
-    /// Simple API-key guard for unauthenticated requests.
-    /// - Secures /api/* by default
-    /// - Allows /hubs/* when either x-api-key header OR access_token query matches
-    /// - Skips for authenticated (JWT) requests and [AllowAnonymous] endpoints
+    /// API-key middleware for unauthenticated requests.
+    /// - Protects /api/*
+    /// - Allows /hubs/* if either x-api-key header OR ?access_token= query matches
+    /// - Skips for JWT-authenticated or [AllowAnonymous] endpoints
     /// </summary>
     public class ApiKeyMiddleware
     {
         private readonly RequestDelegate _next;
         private readonly string? _expectedApiKey;
+        private readonly ILogger<ApiKeyMiddleware> _logger;
 
-        public ApiKeyMiddleware(RequestDelegate next, IConfiguration config)
+        public ApiKeyMiddleware(RequestDelegate next, IConfiguration config, ILogger<ApiKeyMiddleware> logger)
         {
             _next = next;
+            _logger = logger;
             _expectedApiKey = config["ApiSettings:ApiKey"];
         }
 
@@ -28,25 +31,21 @@ namespace PatientApi.Middleware
             var req = context.Request;
             var path = req.Path.Value?.ToLowerInvariant() ?? string.Empty;
 
-            // Let non-API traffic pass (static files, index.html, swagger, etc.)
-            var isApi = path.StartsWith("/api/");
-            var isHub = path.StartsWith("/hubs/");
-
-            // Always allow CORS preflight
+            // Allow OPTIONS preflight
             if (HttpMethods.IsOptions(req.Method))
             {
                 await _next(context);
                 return;
             }
 
-            // Already authenticated via JWT? Skip API-key check.
+            // If already authenticated via JWT
             if (context.User?.Identity?.IsAuthenticated == true)
             {
                 await _next(context);
                 return;
             }
 
-            // Respect endpoint metadata (e.g., [AllowAnonymous])
+            // Allow [AllowAnonymous]
             var endpoint = context.GetEndpoint();
             if (endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null)
             {
@@ -54,26 +53,26 @@ namespace PatientApi.Middleware
                 return;
             }
 
-            // If not touching /api or /hubs, just pass through
+            var isApi = path.StartsWith("/api/");
+            var isHub = path.StartsWith("/hubs/");
+
+            // Not targeting /api or /hubs → skip
             if (!isApi && !isHub)
             {
                 await _next(context);
                 return;
             }
 
-            // Ensure we actually have a configured key
             if (string.IsNullOrWhiteSpace(_expectedApiKey))
             {
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                context.Response.ContentType = "text/plain";
                 await context.Response.WriteAsync("API key not configured.");
                 return;
             }
 
-            // ----- Special handling for SignalR hubs -----
+            // ---- Special: hubs ----
             if (isHub)
             {
-                // Accept either header x-api-key OR query ?access_token=KEY
                 var headerOk = req.Headers.TryGetValue("x-api-key", out var headerVal)
                 && !StringValues.IsNullOrEmpty(headerVal)
                 && string.Equals(headerVal.ToString(), _expectedApiKey);
@@ -84,34 +83,37 @@ namespace PatientApi.Middleware
 
                 if (headerOk || qsOk)
                 {
+                    _logger.LogInformation("✅ Hub authorized via {method}", headerOk ? "header" : "query");
                     await _next(context);
                     return;
                 }
 
+                _logger.LogWarning("❌ Hub unauthorized. Provided header={Header}, query={Query}",
+                req.Headers["x-api-key"].ToString(), req.Query["access_token"].ToString());
+
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.ContentType = "text/plain";
                 await context.Response.WriteAsync("Missing or invalid API key for SignalR hub.");
                 return;
             }
 
-            // ----- Default: protect /api/* with x-api-key header -----
+            // ---- Protect /api/*
             if (isApi)
             {
                 if (!req.Headers.TryGetValue("x-api-key", out var provided) ||
                 StringValues.IsNullOrEmpty(provided) ||
                 !string.Equals(provided.ToString(), _expectedApiKey))
                 {
+                    _logger.LogWarning("❌ API unauthorized. Provided={Provided}", provided.ToString());
                     context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    context.Response.ContentType = "text/plain";
                     await context.Response.WriteAsync("Missing or invalid x-api-key.");
                     return;
                 }
 
+                _logger.LogInformation("✅ API authorized with x-api-key");
                 await _next(context);
                 return;
             }
 
-            // Fallback (shouldn’t hit)
             await _next(context);
         }
     }
