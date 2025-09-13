@@ -1,5 +1,9 @@
 ﻿// src/Services/chat.ts
-import { HubConnection, HubConnectionBuilder, HttpTransportType } from "@microsoft/signalr";
+import {
+    HubConnection,
+    HubConnectionBuilder,
+    HttpTransportType,
+} from "@microsoft/signalr";
 import api from "../api";
 
 // ===== Types =====
@@ -28,25 +32,43 @@ function getApiBaseAndKey() {
         (api.defaults.headers?.common as any)?.["x-api-key"] ??
         (api.defaults.headers as any)?.["x-api-key"] ??
         "";
-
     return { base, apiKey: String(keyHeader || "") };
+}
+
+/** ✅ Hit a cheap HTTP endpoint to wake the Render (free) backend */
+export async function warmApi(): Promise<void> {
+    try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        // Tiny request that also exercises the chat controller
+        await api.get(`chat?room=${encodeURIComponent("lobby")}&take=1`, {
+            signal: ctrl.signal,
+        });
+        clearTimeout(t);
+    } catch {
+        // ignore — this is just a warm-up
+    }
 }
 
 // ===== SignalR connection factory =====
 export function makeHubConnection(): HubConnection {
     const { base, apiKey } = getApiBaseAndKey();
 
-    // Pass API key via query (?access_token=...) so ChatHub/ApiKeyMiddleware accept WS
-    const hubUrl =
-        apiKey ? `${base}/hubs/chat?access_token=${encodeURIComponent(apiKey)}` : `${base}/hubs/chat`;
+    // Pass API key via query (?access_token=...) so ApiKeyMiddleware can validate WS
+    const hubUrl = apiKey
+        ? `${base}/hubs/chat?access_token=${encodeURIComponent(apiKey)}`
+        : `${base}/hubs/chat`;
 
     return new HubConnectionBuilder()
         .withUrl(hubUrl, {
-            transport: HttpTransportType.WebSockets,
-            // We’re not using JWT here; just returning empty string keeps SignalR happy.
+            // Allow fallback if WS isn't ready yet on cold start
+            transport:
+                HttpTransportType.WebSockets | HttpTransportType.LongPolling,
+            // We’re not using JWT for the hub; keep it empty
             accessTokenFactory: () => "",
+            // keep default skipNegotiation=false to allow fallback
         })
-        .withAutomaticReconnect()
+        .withAutomaticReconnect([0, 1000, 2000, 5000, 10000])
         .build();
 }
 
@@ -64,6 +86,8 @@ export async function sendMessageHttp(payload: ChatCreateDto): Promise<ChatMessa
 }
 
 export async function getByPatient(patientId: number, take = 100): Promise<ChatMessage[]> {
-    const res = await api.get<ChatMessage[]>(`chat/byPatient/${patientId}?take=${take}`);
+    const res = await api.get<ChatMessage[]>(
+        `chat/byPatient/${patientId}?take=${take}`
+    );
     return res.data;
 }

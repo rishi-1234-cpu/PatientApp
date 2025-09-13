@@ -2,37 +2,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+    makeHubConnection,
     getRecent,
     sendMessageHttp,
     type ChatCreateDto,
     type ChatMessage,
+    warmApi,
 } from "../Services/chat";
-import {
-    HubConnection,
-    HubConnectionBuilder,
-    LogLevel,
-    HttpTransportType,
-} from "@microsoft/signalr";
 
 type ConnState = "idle" | "connecting" | "connected" | "reconnecting" | "disconnected";
-
-/** Resolve hub URL from Vite env, e.g. https://patient-portal-api-ny3y.onrender.com */
-const API_BASE =
-    (import.meta as any)?.env?.VITE_API_URL?.replace(/\/+$/, "") || "";
-const HUB_URL = `${API_BASE}/hubs/chat`;
-
-function buildConnection(): HubConnection {
-    return new HubConnectionBuilder()
-        .withUrl(HUB_URL, {
-            // Render works best with direct WebSockets from the static site
-            transport: HttpTransportType.WebSockets,
-            skipNegotiation: true,
-            withCredentials: true,
-        })
-        .withAutomaticReconnect([0, 2000, 5000, 10000])
-        .configureLogging(LogLevel.Information)
-        .build();
-}
 
 export default function Chat() {
     const qc = useQueryClient();
@@ -45,7 +23,7 @@ export default function Chat() {
 
     // ---- connection state ----
     const [connState, setConnState] = useState<ConnState>("idle");
-    const hubRef = useRef<HubConnection | null>(null);
+    const hubRef = useRef<ReturnType<typeof makeHubConnection> | null>(null);
     const prevRoomRef = useRef<string>("lobby");
 
     // ---- history (cache per room) ----
@@ -87,7 +65,12 @@ export default function Chat() {
                 hubRef.current = null;
             }
 
-            const hub = buildConnection();
+            // wake the API (free plan cold starts)
+            try {
+                await warmApi();
+            } catch { }
+
+            const hub = makeHubConnection();
             hubRef.current = hub;
 
             hub.onreconnecting(() => setConnState("reconnecting"));
@@ -111,31 +94,19 @@ export default function Chat() {
                 prevRoomRef.current = room;
                 try {
                     await hub.invoke("JoinRoom", room);
-                } catch (e) {
-                    console.warn("JoinRoom failed:", e);
-                }
+                } catch { }
 
                 // fetch history for initial room
                 await refetch();
-            } catch (e) {
-                console.error("SignalR start failed:", e);
+            } catch {
                 if (mounted) setConnState("disconnected");
             }
         }
 
         start();
 
-        // re-try on tab focus if disconnected
-        const onFocus = () => {
-            if (hubRef.current && hubRef.current.state !== "Connected") {
-                start();
-            }
-        };
-        window.addEventListener("focus", onFocus);
-
         return () => {
             mounted = false;
-            window.removeEventListener("focus", onFocus);
             const hub = hubRef.current;
             hubRef.current = null;
             if (hub) {
@@ -162,9 +133,7 @@ export default function Chat() {
                 await hub.invoke("JoinRoom", room);
                 prevRoomRef.current = room;
                 await refetch();
-            } catch (e) {
-                console.warn("JoinRoom on room change failed:", e);
-            }
+            } catch { }
         };
         run();
     }, [room, refetch]);
@@ -184,8 +153,7 @@ export default function Chat() {
         },
     });
 
-    const canSend =
-        text.trim().length > 0 && connState === "connected" && !mSend.isPending;
+    const canSend = text.trim().length > 0 && connState === "connected" && !mSend.isPending;
 
     function onSubmit(e: React.FormEvent) {
         e.preventDefault();
