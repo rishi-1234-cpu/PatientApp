@@ -1,4 +1,4 @@
-// src/components/App.tsx
+﻿// src/components/App.tsx
 import "../App.css";
 import {
     NavLink,
@@ -12,7 +12,7 @@ import {
 
 import ProtectedRoute from "./ProtectedRoute";
 
-// pages (siblings in this folder)
+// pages
 import Dashboard from "./Dashboard";
 import Patients from "./Patients";
 import Admissions from "./Admissions";
@@ -24,8 +24,12 @@ import AiTreatmentSuggest from "./AiTreatmentSuggest";
 import Chat from "./Chat";
 import Login from "./Login";
 
-// auth helpers (one level up)
+// auth helpers
 import { initAuthFromStorage, isLoggedIn, logout } from "../Services/auth";
+
+// ✅ wake the API (helps Render cold starts: login & SignalR)
+import { warmApi } from "../Services/chat";
+
 import { useEffect } from "react";
 
 export default function App() {
@@ -35,10 +39,12 @@ export default function App() {
     // Ensure axios Authorization header is aligned with localStorage
     useEffect(() => {
         initAuthFromStorage();
+        // Warm the backend (cheap GET) so first navigation & SignalR connect smoothly
+        warmApi();
     }, []);
 
-    // If user hits a private URL without a token (e.g., via address bar),
-    // bounce straight to /login. (ProtectedRoute also enforces this.)
+    // If user hits a private URL without a token (via address bar),
+    // bounce to /login. (ProtectedRoute also enforces this.)
     useEffect(() => {
         if (!isLoggedIn() && location.pathname !== "/login") {
             navigate("/login", { replace: true });
@@ -52,8 +58,7 @@ export default function App() {
 
             {/* --------- PRIVATE AREA (Guard + App Layout) --------- */}
             <Route element={<ProtectedRoute />}>
-                {/* App shell (nav + outlet) is INSIDE the guard,
-so it never shows while logged out. */}
+                {/* App shell (nav + outlet) is INSIDE the guard */}
                 <Route
                     element={
                         <>
@@ -63,17 +68,35 @@ so it never shows while logged out. */}
                                     gap: 18,
                                     padding: 14,
                                     borderBottom: "1px solid #eee",
+                                    background: "#f8fafc",
+                                    position: "sticky",
+                                    top: 0,
+                                    zIndex: 10,
                                 }}
                             >
-                                <NavLink to="/dashboard">Dashboard</NavLink>
-                                <NavLink to="/patients">Patients</NavLink>
-                                <NavLink to="/admissions">Admissions</NavLink>
-                                <NavLink to="/vitals">Vitals</NavLink>
-                                <NavLink to="/billing">Billing</NavLink>
-                                <NavLink to="/discharge">Discharge</NavLink>
-                                <NavLink to="/ai-summary">AI Summary</NavLink>
-                                <NavLink to="/ai-treatment">AI Treatment</NavLink>
-                                <NavLink to="/chat">Chat</NavLink>
+                                {[
+                                    ["Dashboard", "/dashboard"],
+                                    ["Patients", "/patients"],
+                                    ["Admissions", "/admissions"],
+                                    ["Vitals", "/vitals"],
+                                    ["Billing", "/billing"],
+                                    ["Discharge", "/discharge"],
+                                    ["AI Summary", "/ai-summary"],
+                                    ["AI Treatment", "/ai-treatment"],
+                                    ["Chat", "/chat"],
+                                ].map(([label, href]) => (
+                                    <NavLink
+                                        key={href}
+                                        to={href}
+                                        style={({ isActive }) => ({
+                                            textDecoration: "none",
+                                            fontWeight: isActive ? 800 : 600,
+                                            color: isActive ? "#0f172a" : "#334155",
+                                        })}
+                                    >
+                                        {label}
+                                    </NavLink>
+                                ))}
 
                                 <a
                                     href="#logout"
@@ -82,7 +105,7 @@ so it never shows while logged out. */}
                                         logout();
                                         navigate("/login", { replace: true });
                                     }}
-                                    style={{ marginLeft: "auto" }}
+                                    style={{ marginLeft: "auto", color: "#ef4444", fontWeight: 700 }}
                                 >
                                     Logout
                                 </a>
