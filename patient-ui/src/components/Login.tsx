@@ -1,14 +1,13 @@
-﻿// src/components/Login.tsx
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { loginUser } from "../Services/auth";
 
 export default function Login() {
     const [userName, setUserName] = useState("");
     const [password, setPassword] = useState("");
-    const [showPwd, setShowPwd] = useState(false);
-    const [busy, setBusy] = useState(false);
     const [err, setErr] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [showPwd, setShowPwd] = useState(false);
 
     const navigate = useNavigate();
     const loc = useLocation() as any;
@@ -20,19 +19,22 @@ export default function Login() {
         setErr(null);
         setBusy(true);
         try {
-            await loginUser(userName.trim(), password); // <-- real API call
+            await loginUser(userName.trim(), password);
             navigate(next, { replace: true });
         } catch (ex: any) {
             const msg =
                 ex?.response?.data?.title ||
                 ex?.response?.data ||
                 ex?.message ||
-                "Login failed. Please try again.";
-            setErr(typeof msg === "string" ? msg : "Login failed.");
+                "Sign-in failed. Please check your credentials.";
+            setErr(typeof msg === "string" ? msg : "Sign-in failed.");
         } finally {
             setBusy(false);
         }
     }
+
+    // robust toggle for mobile
+    const togglePwd = () => setShowPwd((s) => !s);
 
     return (
         <div style={styles.page}>
@@ -55,26 +57,30 @@ export default function Login() {
                     <input
                         value={userName}
                         onChange={(e) => setUserName(e.target.value)}
-                        placeholder="admin@patient.com"
+                        placeholder="e.g. admin@patient.com"
                         autoComplete="username"
+                        inputMode="email"
                         style={styles.input}
                     />
                 </label>
 
                 <label style={styles.field}>
                     <span style={styles.label}>Password</span>
-                    <div className="pwWrap" style={{ position: "relative" }}>
+                    <div style={{ position: "relative" }}>
                         <input
                             type={showPwd ? "text" : "password"}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             autoComplete="current-password"
+                            // extra room for the eye button on phones
                             style={{ ...styles.input, paddingRight: 56 }}
                         />
                         <button
                             type="button"
-                            onClick={() => setShowPwd((s) => !s)}
                             aria-label={showPwd ? "Hide password" : "Show password"}
+                            onClick={togglePwd}
+                            onTouchStart={togglePwd} // iOS/Android
+                            onMouseDown={(e) => e.preventDefault()} // keep input focused
                             style={styles.eyeBtn}
                         >
                             <span aria-hidden="true" style={{ fontSize: 16 }}>
@@ -111,7 +117,7 @@ export default function Login() {
     );
 }
 
-/* ---------- inline styles ---------- */
+/* ---------- Styles ---------- */
 const styles: Record<string, React.CSSProperties> = {
     page: {
         minHeight: "100vh",
@@ -120,59 +126,95 @@ const styles: Record<string, React.CSSProperties> = {
         justifyItems: "center",
         gap: 18,
         padding: 24,
-        background: "linear-gradient(135deg, rgba(25,118,210,.12), rgba(76,175,80,.10))",
+        background:
+            "linear-gradient(135deg, rgba(25,118,210,.12), rgba(76,175,80,.10))",
     },
-    brandRow: { display: "flex", alignItems: "center", gap: 12, userSelect: "none" },
+    brandRow: {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        userSelect: "none",
+    },
     logo: {
-        width: 44, height: 44, display: "grid", placeItems: "center", fontSize: 28,
-        borderRadius: 12, background: "#fff", border: "1px solid #e6eef8",
+        width: 44,
+        height: 44,
+        display: "grid",
+        placeItems: "center",
+        fontSize: 28,
+        borderRadius: 12,
+        background: "#fff",
+        border: "1px solid #e6eef8",
         boxShadow: "0 8px 22px rgba(12, 53, 92, .10)",
     },
     brandTitle: { fontSize: 22, fontWeight: 800 },
     brandSub: { color: "#60707f", marginTop: 2, fontSize: 13 },
+
     card: {
-        width: "min(92vw, 480px)", display: "grid", gap: 12, background: "#fff",
-        borderRadius: 14, padding: 22, border: "1px solid #e6eef8",
+        width: "min(92vw, 480px)",
+        display: "grid",
+        gap: 12,
+        background: "#fff",
+        borderRadius: 14,
+        padding: 22,
+        border: "1px solid #e6eef8",
         boxShadow: "0 18px 50px rgba(12, 53, 92, .12)",
     },
     header: { marginBottom: 4 },
     h1: { margin: 0, fontSize: 24 },
     muted: { color: "#6b7785" },
+
     field: { display: "grid", gap: 6, marginTop: 6 },
     label: { fontSize: 13, fontWeight: 600, color: "#394856" },
     input: {
-        padding: "12px 14px", borderRadius: 10, border: "1px solid #dfe7ef",
-        outline: "none", background: "#fcfdff", width: "100%",
+        padding: "12px 14px",
+        borderRadius: 10,
+        border: "1px solid #dfe7ef",
+        outline: "none",
+        background: "#fcfdff",
+        width: "100%",
     },
+
     eyeBtn: {
-        position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-        height: 40, minWidth: 40, padding: 0, borderRadius: 8,
-        border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer",
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 1px 2px rgba(0,0,0,.06)", touchAction: "manipulation",
+        position: "absolute",
+        right: 8,
+        top: "50%",
+        transform: "translateY(-50%)",
+        height: 44, // big thumb target
+        minWidth: 44,
+        padding: 0,
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        background: "#fff",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 1px 2px rgba(0,0,0,.06)",
+        touchAction: "manipulation",
+        zIndex: 1,
     },
+
     error: {
-        marginTop: 4, padding: "10px 12px", borderRadius: 10,
-        background: "rgba(220, 38, 38, .08)", border: "1px solid rgba(220, 38, 38, .25)",
-        color: "#b91c1c", fontSize: 13,
+        marginTop: 4,
+        padding: "10px 12px",
+        borderRadius: 10,
+        background: "rgba(220, 38, 38, .08)",
+        border: "1px solid rgba(220, 38, 38, .25)",
+        color: "#b91c1c",
+        fontSize: 13,
     },
+
     primaryBtn: {
-        marginTop: 4, padding: "12px 14px", borderRadius: 10, border: 0,
-        background: "linear-gradient(135deg, rgba(25,118,210,1), rgba(33,150,243,1))",
-        color: "#fff", fontWeight: 800, cursor: "pointer",
+        marginTop: 4,
+        padding: "12px 14px",
+        borderRadius: 10,
+        border: 0,
+        background:
+            "linear-gradient(135deg, rgba(25,118,210,1), rgba(33,150,243,1))",
+        color: "#fff",
+        fontWeight: 800,
+        cursor: "pointer",
     },
+
     footerNote: { textAlign: "center", marginTop: 4 },
 };
-
-/* tiny CSS for extra padding on very small phones */
-const styleElId = "__ipd_login_extras";
-if (!document.getElementById(styleElId)) {
-    const el = document.createElement("style");
-    el.id = styleElId;
-    el.textContent = `
-@media (max-width: 480px) {
-.pwWrap input { padding-right: 62px !important; }
-}
-`;
-    document.head.appendChild(el);
-}
