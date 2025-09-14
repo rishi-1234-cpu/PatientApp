@@ -1,15 +1,32 @@
 ﻿import React, { useState } from "react";
-import { Eye, EyeOff } from "lucide-react"; // 👁 professional icons
+import { Eye, EyeOff } from "lucide-react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom"; // for redirecting
 
 const Login: React.FC = () => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const [error, setError] = useState("");
+    const navigate = useNavigate();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.log("Logging in with:", { username, password });
-        // TODO: Call API for authentication
+        setError("");
+
+        try {
+            const response = await axios.post("https://your-api-url.com/login", {
+                username,
+                password,
+            });
+
+            const { token } = response.data; // assuming API returns { token: "JWT" }
+            localStorage.setItem("token", token); // save JWT
+            navigate("/dashboard"); // redirect after login
+        } catch (err: any) {
+            console.error(err);
+            setError(err.response?.data?.message || "Login failed. Please try again.");
+        }
     };
 
     return (
@@ -52,6 +69,8 @@ const Login: React.FC = () => {
                             </button>
                         </div>
                     </div>
+
+                    {error && <p className="text-red-500 text-sm">{error}</p>}
 
                     {/* Sign In Button */}
                     <button
