@@ -1,5 +1,4 @@
 ﻿import React, { useState } from "react";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const Login: React.FC = () => {
     const [username, setUsername] = useState("");
@@ -9,7 +8,7 @@ const Login: React.FC = () => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         console.log("Logging in with:", { username, password });
-        // TODO: Call API for authentication
+        // TODO: Call your backend API here for authentication
     };
 
     return (
@@ -31,7 +30,7 @@ const Login: React.FC = () => {
                         />
                     </div>
 
-                    {/* Password with toggle */}
+                    {/* Password with emoji toggle */}
                     <div>
                         <label className="block mb-1 font-medium">Password</label>
                         <div className="relative">
@@ -43,12 +42,13 @@ const Login: React.FC = () => {
                                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-300"
                                 required
                             />
-                            {/* Eye icon */}
+                            {/* Eye emoji toggle */}
                             <span
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-3 cursor-pointer text-gray-500"
+                                className="absolute right-3 top-2.5 cursor-pointer select-none"
+                                style={{ fontSize: "1.2rem" }}
                             >
-                                {showPassword ? <FaEyeSlash /> : <FaEye />}
+                                {showPassword ? "🙈" : "👁️"}
                             </span>
                         </div>
                     </div>
