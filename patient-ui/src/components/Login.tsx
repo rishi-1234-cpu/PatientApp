@@ -1,14 +1,15 @@
 ﻿import React, { useState } from "react";
-import { FaEye, FaEyeSlash } from "react-icons/fa"; // <-- add
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
-export default function Login() {
+const Login: React.FC = () => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // your existing login call here
+        console.log("Logging in with:", { username, password });
+        // TODO: Call API for authentication
     };
 
     return (
@@ -17,19 +18,20 @@ export default function Login() {
                 <h2 className="text-2xl font-bold text-center mb-6">IPD Portal</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Username / Email */}
                     <div>
                         <label className="block mb-1 font-medium">Username or Email</label>
                         <input
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="e.g. alice.smith"
+                            placeholder="e.g. admin@patient.com"
                             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-300"
-                            autoComplete="username"
                             required
                         />
                     </div>
 
+                    {/* Password with toggle */}
                     <div>
                         <label className="block mb-1 font-medium">Password</label>
                         <div className="relative">
@@ -38,21 +40,20 @@ export default function Login() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Enter your password"
-                                className="w-full px-3 py-2 pr-12 border rounded-lg focus:outline-none focus:ring focus:ring-blue-300"
-                                autoComplete="current-password"
+                                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-300"
                                 required
                             />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword((s) => !s)}
-                                aria-label={showPassword ? "Hide password" : "Show password"}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 grid place-items-center rounded-md border border-gray-300 bg-white text-gray-600 active:scale-95"
+                            {/* Eye icon */}
+                            <span
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-3 cursor-pointer text-gray-500"
                             >
                                 {showPassword ? <FaEyeSlash /> : <FaEye />}
-                            </button>
+                            </span>
                         </div>
                     </div>
 
+                    {/* Sign In Button */}
                     <button
                         type="submit"
                         className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition"
@@ -67,4 +68,6 @@ export default function Login() {
             </div>
         </div>
     );
-}
+};
+
+export default Login;
