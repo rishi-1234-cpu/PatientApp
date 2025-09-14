@@ -80,18 +80,17 @@ export default function Login() {
                             autoCorrect="off"
                             spellCheck={false}
                             enterKeyHint="done"
-                            // enough room so text never sits under the toggle button
                             style={{ ...styles.input, paddingRight: 64 }}
                         />
                         <button
                             type="button"
-                            onMouseDown={(e) => e.preventDefault()} // keep focus in the input (mobile-safe)
+                            onMouseDown={(e) => e.preventDefault()} // prevent input blur
                             onClick={() => setShowPwd((s) => !s)}
                             aria-label={showPwd ? "Hide password" : "Show password"}
                             className="pwToggle"
                             style={styles.eyeBtn}
                         >
-                            <span aria-hidden="true" style={{ fontSize: 16 }}>
+                            <span aria-hidden="true" style={{ fontSize: 18 }}>
                                 {showPwd ? "🙈" : "👁️"}
                             </span>
                         </button>
@@ -122,7 +121,9 @@ export default function Login() {
                 </button>
 
                 <div style={styles.footerNote}>
-                    <small style={styles.muted}>Forgot your password? Contact your IPD administrator.</small>
+                    <small style={styles.muted}>
+                        Forgot your password? Contact your IPD administrator.
+                    </small>
                 </div>
             </form>
         </div>
@@ -170,12 +171,11 @@ const styles: Record<string, React.CSSProperties> = {
         border: "1px solid #dfe7ef",
         outline: "none",
         background: "#fcfdff",
-        fontSize: 16, // avoids iOS zoom on focus
+        fontSize: 16,
         width: "100%",
         boxSizing: "border-box",
     },
 
-    // Bigger, tappable eye button with subtle background/border
     eyeBtn: {
         position: "absolute",
         right: 8,
@@ -229,7 +229,7 @@ const styles: Record<string, React.CSSProperties> = {
     },
 };
 
-/* One-time global CSS for spinner + mobile padding bump */
+/* One-time global CSS */
 const styleElId = "__ipd_login_extras";
 if (!document.getElementById(styleElId)) {
     const el = document.createElement("style");
@@ -237,8 +237,8 @@ if (!document.getElementById(styleElId)) {
     el.textContent = `
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @media (max-width: 480px) {
-.pwWrap input { padding-right: 72px !important; } /* extra room under the eye button on phones */
-.pwToggle { height: 44px !important; min-width: 44px !important; } /* slightly bigger tap target */
+.pwWrap input { padding-right: 72px !important; }
+.pwToggle { height: 44px !important; min-width: 44px !important; }
 }
 `;
     document.head.appendChild(el);
