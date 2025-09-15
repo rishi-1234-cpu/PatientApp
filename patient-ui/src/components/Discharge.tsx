@@ -1,4 +1,4 @@
-// src/components/Discharge.tsx
+ï»¿// src/components/Discharge.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,12 +15,8 @@ import {
 type Mode = "idle" | "create" | "edit";
 
 function fmt(dt?: string) {
-    if (!dt) return "—";
-    try {
-        return new Date(dt).toLocaleString();
-    } catch {
-        return dt as string;
-    }
+    if (!dt) return "â€”";
+    try { return new Date(dt).toLocaleString(); } catch { return dt as string; }
 }
 
 export default function DischargePage() {
@@ -117,27 +113,18 @@ export default function DischargePage() {
 
     const mCreate = useMutation({
         mutationFn: (payload: Partial<Discharge>) => createDischarge(payload),
-        onSuccess: () => {
-            qc.invalidateQueries(qcKey);
-            resetForm();
-        },
+        onSuccess: () => { qc.invalidateQueries(qcKey); resetForm(); },
     });
     const mUpdate = useMutation({
         mutationFn: (payload: Partial<Discharge>) => {
             if (editingId == null) throw new Error("No discharge id to update");
             return updateDischarge(editingId, payload);
         },
-        onSuccess: () => {
-            qc.invalidateQueries(qcKey);
-            resetForm();
-        },
+        onSuccess: () => { qc.invalidateQueries(qcKey); resetForm(); },
     });
     const mDelete = useMutation({
         mutationFn: (id: number | string) => deleteDischarge(id),
-        onSuccess: () => {
-            qc.invalidateQueries(qcKey);
-            setConfirmId(null);
-        },
+        onSuccess: () => { qc.invalidateQueries(qcKey); setConfirmId(null); },
     });
 
     const rows = useMemo(() => {
@@ -167,10 +154,14 @@ export default function DischargePage() {
         });
     }
 
+    // âœ… FIX: treat anything that's NOT "edit" as CREATE
     function onSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (mode === "create") mCreate.mutate(form);
-        if (mode === "edit") mUpdate.mutate(form);
+        if (mode === "edit") {
+            mUpdate.mutate(form);
+        } else {
+            mCreate.mutate(form);
+        }
     }
 
     return (
@@ -207,12 +198,7 @@ export default function DischargePage() {
                 </button>
                 <button
                     type="button"
-                    onClick={() => {
-                        setPatientFilter("");
-                        setAdmissionFilter("");
-                        setSearch("");
-                        qc.invalidateQueries(qcKey);
-                    }}
+                    onClick={() => { setPatientFilter(""); setAdmissionFilter(""); setSearch(""); qc.invalidateQueries(qcKey); }}
                     style={styles.btnSecondary}
                 >
                     Clear
@@ -227,7 +213,7 @@ export default function DischargePage() {
 
             {/* Table */}
             <div style={styles.card}>
-                {isLoading && <p>Loading…</p>}
+                {isLoading && <p>Loadingâ€¦</p>}
                 {isError && <p style={{ color: "crimson" }}>Failed to load discharges.</p>}
 
                 {rows.length > 0 && (
@@ -250,18 +236,15 @@ export default function DischargePage() {
                                     <td style={{ padding: 8 }}>{d.patientId}</td>
                                     <td style={{ padding: 8 }}>{d.admissionId}</td>
                                     <td style={{ padding: 8 }}>{fmt(d.dischargeDate)}</td>
-                                    <td style={{ padding: 8 }}>{d.summary ?? "—"}</td>
+                                    <td style={{ padding: 8 }}>{d.summary ?? "â€”"}</td>
                                     <td style={{ padding: 8 }}>
-                                        {d.outstandingAmount != null ? d.outstandingAmount.toFixed(2) : "—"}
+                                        {d.outstandingAmount != null ? d.outstandingAmount.toFixed(2) : "â€”"}
                                     </td>
                                     <td style={{ padding: 8 }}>
                                         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    setEditingId(d.id);
-                                                    setMode("edit");
-                                                }}
+                                                onClick={() => { setEditingId(d.id); setMode("edit"); }}
                                                 style={styles.btnSecondary}
                                             >
                                                 Edit
@@ -276,7 +259,7 @@ export default function DischargePage() {
                                                         disabled={mDelete.isPending}
                                                         style={{ ...styles.btnPrimary, background: "#e53935" }}
                                                     >
-                                                        {mDelete.isPending ? "Deleting…" : "Yes"}
+                                                        {mDelete.isPending ? "Deletingâ€¦" : "Yes"}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -309,13 +292,7 @@ export default function DischargePage() {
             {/* Form */}
             <form
                 onSubmit={onSubmit}
-                style={{
-                    ...styles.card,
-                    marginTop: 16,
-                    background: "#fbfdff",
-                    display: "grid",
-                    gap: 12,
-                }}
+                style={{ ...styles.card, marginTop: 16, background: "#fbfdff", display: "grid", gap: 12 }}
             >
                 <h3 style={{ margin: 0 }}>
                     {mode === "edit" && editingId != null ? `Edit Discharge #${editingId}` : "Add Discharge"}
@@ -332,9 +309,7 @@ export default function DischargePage() {
                         <span>Patient ID</span>
                         <input
                             value={form.patientId ?? ""}
-                            onChange={(e) =>
-                                setForm((f) => ({ ...f, patientId: Number(e.target.value) || ("" as any) }))
-                            }
+                            onChange={(e) => setForm((f) => ({ ...f, patientId: Number(e.target.value) || ("" as any) }))}
                             inputMode="numeric"
                             required
                             style={styles.input}
@@ -345,9 +320,7 @@ export default function DischargePage() {
                         <span>Admission ID</span>
                         <input
                             value={form.admissionId ?? ""}
-                            onChange={(e) =>
-                                setForm((f) => ({ ...f, admissionId: Number(e.target.value) || ("" as any) }))
-                            }
+                            onChange={(e) => setForm((f) => ({ ...f, admissionId: Number(e.target.value) || ("" as any) }))}
                             inputMode="numeric"
                             required
                             style={styles.input}
@@ -358,14 +331,8 @@ export default function DischargePage() {
                         <span>Discharge Date</span>
                         <input
                             type="datetime-local"
-                            value={
-                                form.dischargeDate
-                                    ? new Date(form.dischargeDate).toISOString().slice(0, 16)
-                                    : ""
-                            }
-                            onChange={(e) =>
-                                setForm((f) => ({ ...f, dischargeDate: new Date(e.target.value).toISOString() }))
-                            }
+                            value={form.dischargeDate ? new Date(form.dischargeDate).toISOString().slice(0, 16) : ""}
+                            onChange={(e) => setForm((f) => ({ ...f, dischargeDate: new Date(e.target.value).toISOString() }))}
                             style={styles.input}
                         />
                     </label>
@@ -417,11 +384,7 @@ export default function DischargePage() {
                 </label>
 
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button
-                        type="submit"
-                        disabled={mCreate.isPending || mUpdate.isPending}
-                        style={styles.btnPrimary}
-                    >
+                    <button type="submit" disabled={mCreate.isPending || mUpdate.isPending} style={styles.btnPrimary}>
                         {mode === "edit" ? "Save Changes" : "Create"}
                     </button>
                     <button type="button" onClick={resetForm} style={styles.btnSecondary}>
