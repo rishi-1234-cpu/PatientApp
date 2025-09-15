@@ -13,7 +13,11 @@ import {
 // small formatter
 function fmt(dt?: string | null) {
     if (!dt) return "—";
-    try { return new Date(dt).toLocaleString(); } catch { return dt; }
+    try {
+        return new Date(dt).toLocaleString();
+    } catch {
+        return dt!;
+    }
 }
 
 type Mode = "idle" | "create" | "edit";
@@ -21,23 +25,21 @@ type Mode = "idle" | "create" | "edit";
 export default function Admissions() {
     const qc = useQueryClient();
 
-    // Guard against any blank buttons/anchors that might creep in
+    // tiny helper to hide stray empty anchors/buttons
     const hideEmpty = (
-        <style>{`
-button:empty, a:empty { display: none !important; }
-`}</style>
+        <style>{`button:empty, a:empty { display:none !important; }`}</style>
     );
 
-    // filters & search
+    // ---- filters & search ----
     const [patientFilter, setPatientFilter] = useState<string>("");
     const [search, setSearch] = useState("");
 
-    // mode & ids
+    // ---- mode & ids ----
     const [mode, setMode] = useState<Mode>("idle");
     const [editingId, setEditingId] = useState<number | string | null>(null);
     const [confirmId, setConfirmId] = useState<number | string | null>(null);
 
-    // form model
+    // ---- form model ----
     const [form, setForm] = useState<Partial<Admission>>({
         patientId: undefined as unknown as number,
         admissionDate: new Date().toISOString(),
@@ -49,13 +51,60 @@ button:empty, a:empty { display: none !important; }
         notes: "",
     });
 
-    // load list (filter included in key)
+    // ---- styles (mobile-first) ----
+    const styles = {
+        input: {
+            width: "100%",
+            padding: 12,
+            minHeight: 44,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "1px solid #ddd",
+            background: "#fff",
+        } as React.CSSProperties,
+        btnPrimary: {
+            padding: "10px 14px",
+            minHeight: 40,
+            borderRadius: 8,
+            border: 0,
+            background: "#1976d2",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: "pointer",
+        } as React.CSSProperties,
+        btnSecondary: {
+            padding: "10px 14px",
+            minHeight: 40,
+            borderRadius: 8,
+            border: "1px solid #ccc",
+            background: "#fff",
+            color: "#111",
+            fontWeight: 500,
+            cursor: "pointer",
+        } as React.CSSProperties,
+        btnDanger: {
+            padding: "6px 10px",
+            borderRadius: 6,
+            border: 0,
+            background: "#e53935",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: "pointer",
+        } as React.CSSProperties,
+        gridAuto: {
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        } as React.CSSProperties,
+    };
+
+    // ---- load list (filter included in key) ----
     const { data = [], isLoading, isError } = useQuery({
         queryKey: ["admissions", patientFilter || ""],
         queryFn: () => getAdmissions(patientFilter ? Number(patientFilter) : undefined),
     });
 
-    // populate form on edit
+    // ---- populate form on edit ----
     useEffect(() => {
         if (mode === "edit" && editingId != null) {
             getAdmission(editingId).then((a) =>
@@ -74,7 +123,7 @@ button:empty, a:empty { display: none !important; }
         }
     }, [mode, editingId]);
 
-    // mutations
+    // ---- mutations ----
     const mCreate = useMutation({
         mutationFn: (payload: Partial<Admission>) => createAdmission(payload),
         onSuccess: () => {
@@ -102,7 +151,7 @@ button:empty, a:empty { display: none !important; }
         },
     });
 
-    // client-side search
+    // ---- client-side search ----
     const rows = useMemo(() => {
         const t = search.trim().toLowerCase();
         if (!t) return data;
@@ -123,7 +172,7 @@ button:empty, a:empty { display: none !important; }
         });
     }, [data, search]);
 
-    // helpers
+    // ---- helpers ----
     function resetForm() {
         setMode("idle");
         setEditingId(null);
@@ -153,27 +202,39 @@ button:empty, a:empty { display: none !important; }
     return (
         <section>
             {hideEmpty}
+            <style>{`
+/* make table scroll on small screens */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; min-width:780px; }
+th, td { padding:8px; text-align:left; border-bottom:1px solid #f2f2f2; }
+`}</style>
+
             <h2>Admissions</h2>
 
             {/* filter + search */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+            <div className="stack-sm" style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
                 <input
                     value={patientFilter}
                     onChange={(e) => setPatientFilter(e.target.value)}
                     placeholder="Filter by Patient ID (server)"
-                    style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                    style={styles.input}
+                    inputMode="numeric"
                 />
                 <button
                     type="button"
                     onClick={() => qc.invalidateQueries({ queryKey: ["admissions"] })}
-                    style={{ padding: "10px 14px", borderRadius: 8, border: 0, background: "#1976d2", color: "#fff", fontWeight: 600 }}
+                    style={styles.btnPrimary}
                 >
                     Apply
                 </button>
                 <button
                     type="button"
-                    onClick={() => { setPatientFilter(""); setSearch(""); qc.invalidateQueries({ queryKey: ["admissions"] }); }}
-                    style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #ccc", background: "#fff", color: "#111" }}
+                    onClick={() => {
+                        setPatientFilter("");
+                        setSearch("");
+                        qc.invalidateQueries({ queryKey: ["admissions"] });
+                    }}
+                    style={styles.btnSecondary}
                     title="Clear filter & search"
                 >
                     Clear
@@ -182,7 +243,7 @@ button:empty, a:empty { display: none !important; }
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search doctor / ward / reason / notes / bed / patient id…"
-                    style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #ddd", marginLeft: "auto" }}
+                    style={{ ...styles.input, marginLeft: "auto" }}
                 />
             </div>
 
@@ -192,77 +253,82 @@ button:empty, a:empty { display: none !important; }
                 {isError && <p style={{ color: "crimson" }}>Failed to load admissions.</p>}
 
                 {rows.length > 0 ? (
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                        <thead>
-                            <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                                <th style={{ padding: 8 }}>ID</th>
-                                <th style={{ padding: 8 }}>Patient</th>
-                                <th style={{ padding: 8 }}>Admit</th>
-                                <th style={{ padding: 8 }}>Discharge</th>
-                                <th style={{ padding: 8 }}>Doctor</th>
-                                <th style={{ padding: 8 }}>Ward</th>
-                                <th style={{ padding: 8 }}>Bed</th>
-                                <th style={{ padding: 8 }}>Reason</th>
-                                <th style={{ padding: 8 }}>Notes</th>
-                                <th style={{ padding: 8 }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((a) => (
-                                <tr key={a.id} style={{ borderBottom: "1px solid #f2f2f2" }}>
-                                    <td style={{ padding: 8 }}>{a.id}</td>
-                                    <td style={{ padding: 8 }}>{a.patientId}</td>
-                                    <td style={{ padding: 8 }}>{fmt(a.admissionDate)}</td>
-                                    <td style={{ padding: 8 }}>{fmt(a.dischargeDate)}</td>
-                                    <td style={{ padding: 8 }}>{a.doctorName ?? "—"}</td>
-                                    <td style={{ padding: 8 }}>{a.ward ?? "—"}</td>
-                                    <td style={{ padding: 8 }}>{a.bedNumber ?? "—"}</td>
-                                    <td style={{ padding: 8 }}>{a.reason ?? "—"}</td>
-                                    <td style={{ padding: 8 }}>{a.notes ?? "—"}</td>
-                                    <td style={{ padding: 8 }}>
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                            <button
-                                                type="button"
-                                                onClick={() => { setEditingId(a.id); setMode("edit"); }}
-                                                style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", background: "#fff", color: "#111" }}
-                                            >
-                                                Edit
-                                            </button>
-
-                                            {confirmId === a.id ? (
-                                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                                    <span style={{ fontSize: 12, color: "#555" }}>Confirm?</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => mDelete.mutate(a.id)}
-                                                        disabled={mDelete.isPending}
-                                                        style={{ padding: "6px 10px", borderRadius: 6, border: 0, background: "#e53935", color: "#fff", fontWeight: 600 }}
-                                                    >
-                                                        {mDelete.isPending ? "Deleting…" : "Yes"}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setConfirmId(null)}
-                                                        style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", background: "#fff", color: "#111" }}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                            ) : (
+                    <div className="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Patient</th>
+                                    <th>Admit</th>
+                                    <th>Discharge</th>
+                                    <th>Doctor</th>
+                                    <th>Ward</th>
+                                    <th>Bed</th>
+                                    <th>Reason</th>
+                                    <th>Notes</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((a) => (
+                                    <tr key={a.id}>
+                                        <td>{a.id}</td>
+                                        <td>{a.patientId}</td>
+                                        <td>{fmt(a.admissionDate)}</td>
+                                        <td>{fmt(a.dischargeDate)}</td>
+                                        <td>{a.doctorName ?? "—"}</td>
+                                        <td>{a.ward ?? "—"}</td>
+                                        <td>{a.bedNumber ?? "—"}</td>
+                                        <td>{a.reason ?? "—"}</td>
+                                        <td>{a.notes ?? "—"}</td>
+                                        <td>
+                                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setConfirmId(a.id)}
-                                                    style={{ padding: "6px 10px", borderRadius: 6, border: 0, background: "#e53935", color: "#fff" }}
+                                                    onClick={() => {
+                                                        setEditingId(a.id);
+                                                        setMode("edit");
+                                                    }}
+                                                    style={styles.btnSecondary}
                                                 >
-                                                    Delete
+                                                    Edit
                                                 </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+
+                                                {confirmId === a.id ? (
+                                                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                                        <span style={{ fontSize: 12, color: "#555" }}>Confirm?</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => mDelete.mutate(a.id)}
+                                                            disabled={mDelete.isPending}
+                                                            style={styles.btnDanger}
+                                                        >
+                                                            {mDelete.isPending ? "Deleting…" : "Yes"}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setConfirmId(null)}
+                                                            style={styles.btnSecondary}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setConfirmId(a.id)}
+                                                        style={styles.btnDanger}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 ) : (
                     !isLoading && <p>No admissions found.</p>
                 )}
@@ -272,18 +338,34 @@ button:empty, a:empty { display: none !important; }
             {mode !== "idle" && (
                 <form
                     onSubmit={onSubmit}
-                    style={{ marginTop: 16, padding: 16, border: "1px solid #dde3ea", borderRadius: 8, background: "#fbfdff", display: "grid", gap: 12 }}
+                    style={{
+                        marginTop: 16,
+                        padding: 16,
+                        border: "1px solid #dde3ea",
+                        borderRadius: 8,
+                        background: "#fbfdff",
+                        display: "grid",
+                        gap: 12,
+                    }}
                 >
-                    <h3 style={{ margin: 0 }}>{mode === "edit" ? `Edit Admission #${editingId}` : "Add Admission"}</h3>
+                    <h3 style={{ margin: 0 }}>
+                        {mode === "edit" ? `Edit Admission #${editingId}` : "Add Admission"}
+                    </h3>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div style={styles.gridAuto}>
                         <label style={{ display: "grid", gap: 6 }}>
                             <span>Patient ID *</span>
                             <input
                                 value={form.patientId ?? ""}
-                                onChange={(e) => setForm((f) => ({ ...f, patientId: Number(e.target.value) || ("" as any) }))}
+                                onChange={(e) =>
+                                    setForm((f) => ({
+                                        ...f,
+                                        patientId: Number(e.target.value) || ("" as any),
+                                    }))
+                                }
                                 required
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
+                                inputMode="numeric"
                             />
                         </label>
 
@@ -291,10 +373,19 @@ button:empty, a:empty { display: none !important; }
                             <span>Admission date/time *</span>
                             <input
                                 type="datetime-local"
-                                value={form.admissionDate ? new Date(form.admissionDate).toISOString().slice(0, 16) : ""}
-                                onChange={(e) => setForm((f) => ({ ...f, admissionDate: new Date(e.target.value).toISOString() }))}
+                                value={
+                                    form.admissionDate
+                                        ? new Date(form.admissionDate).toISOString().slice(0, 16)
+                                        : ""
+                                }
+                                onChange={(e) =>
+                                    setForm((f) => ({
+                                        ...f,
+                                        admissionDate: new Date(e.target.value).toISOString(),
+                                    }))
+                                }
                                 required
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             />
                         </label>
 
@@ -302,9 +393,20 @@ button:empty, a:empty { display: none !important; }
                             <span>Discharge date/time</span>
                             <input
                                 type="datetime-local"
-                                value={form.dischargeDate ? new Date(form.dischargeDate).toISOString().slice(0, 16) : ""}
-                                onChange={(e) => setForm((f) => ({ ...f, dischargeDate: e.target.value ? new Date(e.target.value).toISOString() : undefined }))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                value={
+                                    form.dischargeDate
+                                        ? new Date(form.dischargeDate).toISOString().slice(0, 16)
+                                        : ""
+                                }
+                                onChange={(e) =>
+                                    setForm((f) => ({
+                                        ...f,
+                                        dischargeDate: e.target.value
+                                            ? new Date(e.target.value).toISOString()
+                                            : undefined,
+                                    }))
+                                }
+                                style={styles.input}
                             />
                         </label>
 
@@ -313,7 +415,7 @@ button:empty, a:empty { display: none !important; }
                             <input
                                 value={form.doctorName ?? ""}
                                 onChange={(e) => setForm((f) => ({ ...f, doctorName: e.target.value }))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             />
                         </label>
 
@@ -322,7 +424,7 @@ button:empty, a:empty { display: none !important; }
                             <input
                                 value={form.ward ?? ""}
                                 onChange={(e) => setForm((f) => ({ ...f, ward: e.target.value }))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             />
                         </label>
 
@@ -331,7 +433,7 @@ button:empty, a:empty { display: none !important; }
                             <input
                                 value={form.bedNumber ?? ""}
                                 onChange={(e) => setForm((f) => ({ ...f, bedNumber: e.target.value }))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             />
                         </label>
                     </div>
@@ -341,7 +443,7 @@ button:empty, a:empty { display: none !important; }
                         <input
                             value={form.reason ?? ""}
                             onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-                            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                            style={styles.input}
                         />
                     </label>
 
@@ -351,23 +453,19 @@ button:empty, a:empty { display: none !important; }
                             rows={3}
                             value={form.notes ?? ""}
                             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                            style={{ ...styles.input, minHeight: 100 }}
                         />
                     </label>
 
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <button
                             type="submit"
                             disabled={mCreate.isPending || mUpdate.isPending}
-                            style={{ padding: "10px 12px", borderRadius: 8, border: 0, background: "#1976d2", color: "#fff", fontWeight: 600 }}
+                            style={styles.btnPrimary}
                         >
                             {mode === "edit" ? "Save Changes" : "Create"}
                         </button>
-                        <button
-                            type="button"
-                            onClick={resetForm}
-                            style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", background: "#fff", color: "#111" }}
-                        >
+                        <button type="button" onClick={resetForm} style={styles.btnSecondary}>
                             Cancel
                         </button>
                     </div>
@@ -377,11 +475,7 @@ button:empty, a:empty { display: none !important; }
             {/* entry point when idle */}
             {mode === "idle" && (
                 <div style={{ marginTop: 16 }}>
-                    <button
-                        type="button"
-                        onClick={startCreate}
-                        style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", background: "#fff", color: "#111" }}
-                    >
+                    <button type="button" onClick={startCreate} style={styles.btnSecondary}>
                         Add Admission
                     </button>
                 </div>

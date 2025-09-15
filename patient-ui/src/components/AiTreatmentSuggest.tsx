@@ -1,5 +1,5 @@
 ﻿// src/components/AiTreatmentSuggest.tsx
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
     treatmentSuggest,
@@ -99,28 +99,64 @@ export default function AiTreatmentSuggest() {
         [form]
     );
 
+    // --- shared styles (mobile-first) ---
+    const styles = {
+        card: {
+            padding: 16,
+            border: "1px solid #eee",
+            borderRadius: 8,
+            background: "#fff",
+        } as React.CSSProperties,
+        grid: {
+            display: "grid",
+            gap: 10,
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        } as React.CSSProperties,
+        input: {
+            width: "100%",
+            padding: 12,
+            minHeight: 44,
+            borderRadius: 8,
+            border: "1px solid #ddd",
+            background: "#fff",
+            fontSize: 16,
+        } as React.CSSProperties,
+        btnPrimary: {
+            padding: "10px 14px",
+            minHeight: 44,
+            borderRadius: 8,
+            border: 0,
+            background: "#1976d2",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: "pointer",
+        } as React.CSSProperties,
+        btnSecondary: {
+            padding: "10px 14px",
+            minHeight: 44,
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+            color: "#111827",
+            fontWeight: 600,
+            cursor: "pointer",
+        } as React.CSSProperties,
+    };
+
     return (
         <section>
             <h2>AI Treatment Suggest</h2>
 
-            <form
-                onSubmit={onSubmit}
-                style={{
-                    padding: 16,
-                    border: "1px solid #eee",
-                    borderRadius: 8,
-                    background: "#fff",
-                }}
-                autoComplete="off"
-            >
-                <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
+            <form onSubmit={onSubmit} style={styles.card} autoComplete="off">
+                <div style={styles.grid}>
                     <Field label="Patient ID (optional)">
                         <div style={{ display: "flex", gap: 8, width: "100%" }}>
                             <input
                                 type="number"
+                                inputMode="numeric"
                                 value={form.patientId ?? ""}
                                 onChange={(e) => set("patientId", numOrUndef(e.target.value))}
-                                style={{ flex: 1 }}
+                                style={styles.input}
                             />
                             <button
                                 type="button"
@@ -128,12 +164,8 @@ export default function AiTreatmentSuggest() {
                                 disabled={isPending}
                                 title="Autofill latest vitals from DB"
                                 style={{
-                                    padding: "10px 14px",
-                                    borderRadius: 8,
-                                    border: 0,
-                                    background: "#1976d2",
-                                    color: "#fff",
-                                    fontWeight: 600,
+                                    ...styles.btnPrimary,
+                                    whiteSpace: "nowrap",
                                     opacity: isPending ? 0.7 : 1,
                                 }}
                             >
@@ -146,6 +178,7 @@ export default function AiTreatmentSuggest() {
                         <input
                             value={form.diagnosis ?? ""}
                             onChange={(e) => set("diagnosis", e.target.value)}
+                            style={styles.input}
                         />
                     </Field>
 
@@ -153,55 +186,68 @@ export default function AiTreatmentSuggest() {
                         <input
                             value={(form.symptoms ?? []).join(", ")}
                             onChange={(e) => set("symptoms", parseCSV(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
                     <Field label="Temperature (°C)">
                         <input
                             type="number"
+                            inputMode="decimal"
                             step="0.1"
                             value={form.tempC ?? ""}
                             onChange={(e) => set("tempC", numOrUndef(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
                     <Field label="Pulse (bpm)">
                         <input
                             type="number"
+                            inputMode="numeric"
                             value={form.pulse ?? ""}
                             onChange={(e) => set("pulse", numOrUndef(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
                     <Field label="Resp. Rate">
                         <input
                             type="number"
+                            inputMode="numeric"
                             value={form.respRate ?? ""}
                             onChange={(e) => set("respRate", numOrUndef(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
                     <Field label="Systolic">
                         <input
                             type="number"
+                            inputMode="numeric"
                             value={form.systolic ?? ""}
                             onChange={(e) => set("systolic", numOrUndef(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
                     <Field label="Diastolic">
                         <input
                             type="number"
+                            inputMode="numeric"
                             value={form.diastolic ?? ""}
                             onChange={(e) => set("diastolic", numOrUndef(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
                     <Field label="SpO₂">
                         <input
                             type="number"
+                            inputMode="numeric"
                             value={form.spO2 ?? ""}
                             onChange={(e) => set("spO2", numOrUndef(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
@@ -209,6 +255,7 @@ export default function AiTreatmentSuggest() {
                         <input
                             value={(form.allergies ?? []).join(", ")}
                             onChange={(e) => set("allergies", parseCSV(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
@@ -216,6 +263,7 @@ export default function AiTreatmentSuggest() {
                         <input
                             value={(form.medications ?? []).join(", ")}
                             onChange={(e) => set("medications", parseCSV(e.target.value))}
+                            style={styles.input}
                         />
                     </Field>
 
@@ -224,6 +272,7 @@ export default function AiTreatmentSuggest() {
                             rows={3}
                             value={form.notes ?? ""}
                             onChange={(e) => set("notes", e.target.value)}
+                            style={{ ...styles.input, minHeight: 100 }}
                         />
                     </Field>
                 </div>
@@ -259,19 +308,11 @@ export default function AiTreatmentSuggest() {
                     </div>
                 )}
 
-                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button
                         type="submit"
                         disabled={isPending}
-                        style={{
-                            padding: "10px 14px",
-                            borderRadius: 8,
-                            border: 0,
-                            background: "#1976d2",
-                            color: "#fff",
-                            fontWeight: 600,
-                            opacity: isPending ? 0.7 : 1,
-                        }}
+                        style={{ ...styles.btnPrimary, opacity: isPending ? 0.7 : 1 }}
                     >
                         {isPending ? "Generating…" : "Suggest Treatment"}
                     </button>
@@ -281,12 +322,7 @@ export default function AiTreatmentSuggest() {
                         onClick={onReset}
                         disabled={isPending || !isDirty}
                         style={{
-                            padding: "10px 14px",
-                            borderRadius: 8,
-                            border: "1px solid #d1d5db",
-                            background: "#fff",
-                            color: "#111827",
-                            fontWeight: 600,
+                            ...styles.btnSecondary,
                             opacity: isPending || !isDirty ? 0.6 : 1,
                         }}
                         title="Clear all fields"
@@ -296,15 +332,7 @@ export default function AiTreatmentSuggest() {
                 </div>
             </form>
 
-            <div
-                style={{
-                    marginTop: 16,
-                    padding: 16,
-                    border: "1px solid #dde3ea",
-                    borderRadius: 8,
-                    background: "#fbfdff",
-                }}
-            >
+            <div style={{ ...styles.card, marginTop: 16, background: "#fbfdff" }}>
                 {mSuggest.isError ? (
                     <span style={{ color: "crimson" }}>Failed to fetch suggestions.</span>
                 ) : (
@@ -315,7 +343,7 @@ export default function AiTreatmentSuggest() {
     );
 }
 
-// ---------- pretty rendering ----------
+/* ---------- pretty rendering ---------- */
 function PrettyResult({ data }: { data?: TreatmentSuggestResult }) {
     if (!data) return <p style={{ margin: 0, color: "#6b7280" }}>No output yet.</p>;
     if ("result" in data) return <pre style={{ margin: 0 }}>{data.result}</pre>;
@@ -346,9 +374,12 @@ function PrettyResult({ data }: { data?: TreatmentSuggestResult }) {
                             <li key={i} style={{ marginBottom: 6 }}>
                                 <div>
                                     <strong>{m.name}</strong>
-                                    {m.class ? ` — ${m.class}` : ""} {m.typicalDose ? `• ${m.typicalDose}` : ""}
+                                    {m.class ? ` — ${m.class}` : ""}{" "}
+                                    {m.typicalDose ? `• ${m.typicalDose}` : ""}
                                 </div>
-                                {m.notes && <div style={{ color: "#4b5563", fontSize: 14 }}>{m.notes}</div>}
+                                {m.notes && (
+                                    <div style={{ color: "#4b5563", fontSize: 14 }}>{m.notes}</div>
+                                )}
                             </li>
                         ))}
                     </ul>
@@ -361,7 +392,9 @@ function PrettyResult({ data }: { data?: TreatmentSuggestResult }) {
                 </div>
             )}
             {r.disclaimer && (
-                <p style={{ margin: 0, color: "#6b7280", fontStyle: "italic" }}>{r.disclaimer}</p>
+                <p style={{ margin: 0, color: "#6b7280", fontStyle: "italic" }}>
+                    {r.disclaimer}
+                </p>
             )}
         </div>
     );
@@ -380,7 +413,7 @@ function Section({ title, items }: { title: string; items: string[] }) {
     );
 }
 
-// small styled field wrapper
+/* ---------- small styled field wrapper ---------- */
 function Field({
     label,
     children,
@@ -400,22 +433,30 @@ function Field({
         >
             <span>{label}</span>
             <div style={{ display: "flex" }}>
-                <div style={{ width: "100%" }}>{cloneWithInputStyle(children as any)}</div>
+                <div style={{ width: "100%" }}>{styleInput(children)}</div>
             </div>
         </label>
     );
 }
 
-function cloneWithInputStyle(el: any) {
-    if (!el || typeof el !== "object") return el;
-    const baseStyle = {
-        padding: 10,
+function styleInput(node: React.ReactNode): React.ReactNode {
+    if (!React.isValidElement(node)) return node;
+    const base: React.CSSProperties = {
+        width: "100%",
+        padding: 12,
+        minHeight: 44,
         borderRadius: 8,
         border: "1px solid #ddd",
-        width: "100%",
-    } as const;
-
-    if (el.type === "div") return el;
-
-    return { ...el, props: { ...el.props, style: { ...baseStyle, ...(el.props?.style || {}) } } };
+        background: "#fff",
+        fontSize: 16,
+    };
+    const extra: any = {};
+    const t = (node.props as any)?.type;
+    if (t === "number") {
+        extra.inputMode = (node.props as any)?.step ? "decimal" : "numeric";
+    }
+    return React.cloneElement(node as any, {
+        style: { ...base, ...(node.props as any)?.style },
+        ...extra,
+    });
 }

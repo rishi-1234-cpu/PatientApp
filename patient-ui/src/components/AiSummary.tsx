@@ -1,3 +1,4 @@
+// src/components/AiSummary.tsx
 import { useMutation } from "@tanstack/react-query";
 import { askAi, aiSummary } from "../Services/Ai";
 import type { AiSummaryRequest, AiSummaryResponse } from "../Services/Ai";
@@ -11,22 +12,17 @@ export default function AiSummary() {
     // generic
     const [prompt, setPrompt] = useState("");
 
-    // summary
+    // summary inputs
     const [notes, setNotes] = useState("");
     const [patientId, setPatientId] = useState<number | "">("");
     const [age, setAge] = useState<number | "">("");
     const [temperatureC, setTemperatureC] = useState<number | "">("");
     const [duration, setDuration] = useState("");
     const [medicationsTried, setMedicationsTried] = useState("");
-    const [dischargedStable, setDischargedStable] = useState(false); // now used
+    const [dischargedStable, setDischargedStable] = useState(false);
 
-    const mAsk = useMutation({
-        mutationFn: (p: string) => askAi(p),
-    });
-
-    const mSummary = useMutation({
-        mutationFn: (req: AiSummaryRequest) => aiSummary(req),
-    });
+    const mAsk = useMutation({ mutationFn: (p: string) => askAi(p) });
+    const mSummary = useMutation({ mutationFn: (req: AiSummaryRequest) => aiSummary(req) });
 
     const onSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,7 +34,6 @@ export default function AiSummary() {
             return;
         }
 
-        // summary payload
         const payload: AiSummaryRequest = {
             notes: notes.trim() ? notes.trim() : null,
             patientId: patientId === "" ? null : Number(patientId),
@@ -53,56 +48,90 @@ export default function AiSummary() {
         mSummary.mutate(payload);
     };
 
-    // --- styles for tabs (clear active/hover) ---
-    const buttonBase: React.CSSProperties = {
-        padding: "10px 14px",
-        borderRadius: 8,
-        border: "2px solid #1976d2",
-        background: "#f5f9ff",
-        color: "#1976d2",
-        fontWeight: 600,
-        cursor: "pointer",
-        transition: "all 0.2s ease-in-out",
-    };
-    const buttonActive: React.CSSProperties = {
-        ...buttonBase,
-        background: "#1976d2",
-        color: "#fff",
-    };
-    const buttonHover: React.CSSProperties = {
-        ...buttonBase,
-        background: "#1565c0",
-        color: "#fff",
-        borderColor: "#1565c0",
-    };
-
     const isLoading = mAsk.isPending || mSummary.isPending;
+
+    // ----- shared styles (mobile-friendly) -----
+    const styles = {
+        input: {
+            width: "100%",
+            padding: 12,
+            minHeight: 44,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "1px solid #ddd",
+            background: "#fff",
+        } as React.CSSProperties,
+        textArea: {
+            width: "100%",
+            padding: 12,
+            minHeight: 100,
+            fontSize: 16,
+            borderRadius: 8,
+            border: "1px solid #ddd",
+            background: "#fff",
+        } as React.CSSProperties,
+        btnBase: {
+            padding: "10px 14px",
+            minHeight: 44,
+            borderRadius: 8,
+            border: 0,
+            fontWeight: 600,
+            cursor: "pointer",
+        } as React.CSSProperties,
+        btnPrimary: {
+            background: "#1976d2",
+            color: "#fff",
+        } as React.CSSProperties,
+        btnOutline: {
+            border: "2px solid #1976d2",
+            background: "#f5f9ff",
+            color: "#1976d2",
+        } as React.CSSProperties,
+        btnOutlineActive: {
+            background: "#1976d2",
+            color: "#fff",
+            borderColor: "#1976d2",
+        } as React.CSSProperties,
+        gridAuto: {
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        } as React.CSSProperties,
+    };
 
     return (
         <section>
+            <style>{`
+/* small helper for stacking on tiny screens */
+@media (max-width: 600px){
+.stack-sm { flex-direction: column; align-items: stretch; }
+.stack-sm > * { width: 100% }
+}
+`}</style>
+
             <h2>AI Summary</h2>
 
             {/* Tabs */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <div className="stack-sm" style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 <button
                     type="button"
-                    style={mode === "summary" ? buttonActive : buttonBase}
-                    onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-                    onMouseOut={(e) =>
-                        Object.assign(e.currentTarget.style, mode === "summary" ? buttonActive : buttonBase)
-                    }
                     onClick={() => setMode("summary")}
+                    style={{
+                        ...styles.btnBase,
+                        ...(mode === "summary" ? styles.btnOutlineActive : styles.btnOutline),
+                    }}
+                    aria-pressed={mode === "summary"}
                 >
                     Case Summary
                 </button>
                 <button
                     type="button"
-                    style={mode === "generic" ? buttonActive : buttonBase}
-                    onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-                    onMouseOut={(e) =>
-                        Object.assign(e.currentTarget.style, mode === "generic" ? buttonActive : buttonBase)
-                    }
                     onClick={() => setMode("generic")}
+                    style={{
+                        ...styles.btnBase,
+                        ...(mode === "generic" ? styles.btnOutlineActive : styles.btnOutline),
+                    }}
+                    aria-pressed={mode === "generic"}
                 >
                     Generic Ask
                 </button>
@@ -119,7 +148,7 @@ export default function AiSummary() {
                         placeholder="Ask the AI anything…"
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
-                        style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #ddd" }}
+                        style={styles.textArea}
                     />
                 ) : (
                     <>
@@ -127,61 +156,76 @@ export default function AiSummary() {
                             placeholder='Notes (manual), e.g., "fever 3 days, 38.5°C, responded to paracetamol, discharged stable"'
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
-                            style={{
-                                width: "100%",
-                                padding: 12,
-                                borderRadius: 8,
-                                border: "1px solid #ddd",
-                                marginBottom: 12,
-                            }}
+                            style={{ ...styles.textArea, marginBottom: 12 }}
                         />
 
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        <div style={styles.gridAuto}>
                             <input
                                 type="number"
+                                inputMode="numeric"
                                 placeholder="Patient Id (optional)"
                                 value={patientId}
-                                onChange={(e) => setPatientId(e.target.value === "" ? "" : Number(e.target.value))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                onChange={(e) =>
+                                    setPatientId(e.target.value === "" ? "" : Number(e.target.value))
+                                }
+                                style={styles.input}
+                                aria-label="Patient Id (optional)"
                             />
                             <input
                                 type="number"
+                                inputMode="numeric"
                                 placeholder="Age (optional)"
                                 value={age}
                                 onChange={(e) => setAge(e.target.value === "" ? "" : Number(e.target.value))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
+                                aria-label="Age (optional)"
                             />
                             <input
                                 type="number"
+                                inputMode="decimal"
                                 step="0.1"
                                 placeholder="Temperature °C (optional)"
                                 value={temperatureC}
                                 onChange={(e) =>
                                     setTemperatureC(e.target.value === "" ? "" : Number(e.target.value))
                                 }
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
+                                aria-label="Temperature in Celsius (optional)"
                             />
                             <input
                                 type="text"
                                 placeholder='Duration (optional), e.g., "3 days"'
                                 value={duration}
                                 onChange={(e) => setDuration(e.target.value)}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
+                                aria-label="Duration (optional)"
+                                autoComplete="off"
                             />
                             <input
                                 type="text"
                                 placeholder="Medications tried (optional)"
                                 value={medicationsTried}
                                 onChange={(e) => setMedicationsTried(e.target.value)}
-                                style={{ gridColumn: "1 / span 2", padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={{ ...styles.input, gridColumn: "1 / -1" }}
+                                aria-label="Medications tried (optional)"
+                                autoComplete="off"
                             />
                         </div>
 
-                        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+                        <label
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                                marginTop: 12,
+                                lineHeight: 1.2,
+                            }}
+                        >
                             <input
                                 type="checkbox"
                                 checked={dischargedStable}
                                 onChange={(e) => setDischargedStable(e.target.checked)}
+                                style={{ width: 20, height: 20 }}
                             />
                             Discharged stable
                         </label>
@@ -192,18 +236,7 @@ export default function AiSummary() {
                     <button
                         type="submit"
                         disabled={isLoading || (mode === "generic" && !prompt.trim())}
-                        style={{
-                            padding: "10px 14px",
-                            borderRadius: 8,
-                            border: 0,
-                            background: "#1976d2",
-                            color: "#fff",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            transition: "background 0.2s ease-in-out",
-                        }}
-                        onMouseOver={(e) => (e.currentTarget.style.background = "#1565c0")}
-                        onMouseOut={(e) => (e.currentTarget.style.background = "#1976d2")}
+                        style={{ ...styles.btnBase, ...styles.btnPrimary }}
                     >
                         {mode === "generic"
                             ? mAsk.isPending

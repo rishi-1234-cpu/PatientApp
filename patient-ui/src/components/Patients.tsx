@@ -1,5 +1,5 @@
 ﻿// src/components/Patients.tsx
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     getPatients,
@@ -23,9 +23,9 @@ const phoneRe = /^\+?[0-9\s-]{7,15}$/;
 function validatePatient(form: {
     firstName?: string;
     lastName?: string;
-    email?: string; // ← no null here
-    phone?: string; // ← no null here
-    dateOfBirth?: string; // ← no null here
+    email?: string;
+    phone?: string;
+    dateOfBirth?: string;
 }) {
     const errs: Record<string, string> = {};
     if (!form.firstName?.trim()) errs.firstName = "First name is required.";
@@ -42,9 +42,9 @@ function validatePatient(form: {
     }
 
     if (form.email && !emailRe.test(form.email)) errs.email = "Enter a valid email.";
-    if (form.phone && !phoneRe.test(form.phone))
+    if (form.phone && !phoneRe.test(form.phone)) {
         errs.phone = "Enter a valid phone (digits/spaces/-/+, 7–15 chars).";
-
+    }
     return errs;
 }
 
@@ -54,20 +54,19 @@ type Mode = "idle" | "create" | "edit";
 export default function Patients() {
     const qc = useQueryClient();
 
-    // HARD stop for any stray empty/pseudo buttons (fixes “blank box”)
-    const hardBlock = (
+    // Defensive CSS: hide accidental empty controls + make table scroll on mobile
+    const globalCss = (
         <style>{`
-button::before, button::after { content: none !important; }
-button:empty { display: none !important; }
-.btn {
-display:inline-flex; align-items:center; justify-content:center;
-padding:10px 12px; border-radius:8px; line-height:1.2;
-gap:8px; user-select:none; font-weight:600; text-decoration:none;
+button:empty, a:empty { display:none !important; }
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border-radius:8px;line-height:1.2;gap:8px;font-weight:600;text-decoration:none;user-select:none}
+.btn--primary{background:#1976d2;color:#fff;border:0}
+.btn--light{background:#fff;color:#111;border:1px solid #ccc}
+.btn--danger{background:#e53935;color:#fff;border:0}
+.btn--thin{padding:6px 10px;border-radius:6px}
+.table-wrap{width:100%;overflow:auto}
+@media (max-width: 640px){
+.controls{flex-direction:column;align-items:stretch}
 }
-.btn--primary { background:#1976d2; color:#fff; border:0; }
-.btn--light { background:#fff; color:#111; border:1px solid #ccc; }
-.btn--danger { background:#e53935; color:#fff; border:0; }
-.btn--thin { padding:6px 10px; border-radius:6px; }
 `}</style>
     );
 
@@ -152,9 +151,34 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
             const email = (p.email ?? "").toLowerCase();
             const phone = (p.phone ?? "").toLowerCase();
             const gender = (p.gender ?? "").toLowerCase();
-            return id.includes(t) || name.includes(t) || email.includes(t) || phone.includes(t) || gender.includes(t);
+            return (
+                id.includes(t) ||
+                name.includes(t) ||
+                email.includes(t) ||
+                phone.includes(t) ||
+                gender.includes(t)
+            );
         });
     }, [data, search]);
+
+    // shared styles
+    const styles = {
+        input: {
+            width: "100%",
+            padding: 12,
+            minHeight: 44,
+            borderRadius: 8,
+            border: "1px solid #ddd",
+            background: "#fff",
+            fontSize: 16,
+        } as React.CSSProperties,
+        card: {
+            padding: 16,
+            border: "1px solid #eee",
+            borderRadius: 8,
+            background: "#fff",
+        } as React.CSSProperties,
+    };
 
     // helpers
     function resetForm() {
@@ -201,13 +225,12 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
             lastName: form.lastName,
             email: form.email,
             phone: form.phone,
-            dateOfBirth: form.dateOfBirth, // ← no null
+            dateOfBirth: form.dateOfBirth,
         });
         if (Object.keys(errs).length) {
             setFormErr(Object.values(errs)[0]);
             return;
         }
-        // IMPORTANT: use undefined (NOT null) for optional fields to match Patient type
         const payload: Partial<Patient> = {
             firstName: form.firstName?.trim(),
             lastName: form.lastName?.trim(),
@@ -226,22 +249,38 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
     /* ------------------------------- render ------------------------------- */
     return (
         <section>
-            {hardBlock}
+            {globalCss}
             <h2>Patients</h2>
 
             {/* search + add */}
-            <div style={{ display: "flex", gap: 8, marginBlock: 16, alignItems: "center" }}>
+            <div
+                className="controls"
+                style={{
+                    display: "flex",
+                    gap: 8,
+                    marginBlock: 16,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                }}
+            >
                 <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search by name, email, phone, gender, or ID…"
-                    style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                    style={{ ...styles.input, flex: 1 }}
                 />
                 <button
                     onClick={() => {
                         setMode("create");
                         setEditingId(null);
-                        setForm({ firstName: "", lastName: "", email: "", phone: "", gender: "Male", dateOfBirth: "" });
+                        setForm({
+                            firstName: "",
+                            lastName: "",
+                            email: "",
+                            phone: "",
+                            gender: "Male",
+                            dateOfBirth: "",
+                        });
                         setFormErr("");
                     }}
                     className="btn btn--primary"
@@ -251,59 +290,71 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
             </div>
 
             {/* list / table */}
-            <div style={{ padding: 16, border: "1px solid #eee", borderRadius: 8, background: "#fff" }}>
+            <div style={styles.card}>
                 {isLoading && <p>Loading…</p>}
                 {isError && <p style={{ color: "crimson" }}>Failed to load patients.</p>}
                 {!isLoading && rows.length === 0 && <p>No patients found.</p>}
 
                 {rows.length > 0 && (
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                        <thead>
-                            <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                                <th style={{ padding: 8 }}>ID</th>
-                                <th style={{ padding: 8 }}>Name</th>
-                                <th style={{ padding: 8 }}>Email</th>
-                                <th style={{ padding: 8 }}>Phone</th>
-                                <th style={{ padding: 8 }}>Gender</th>
-                                <th style={{ padding: 8, width: 360 }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((p) => (
-                                <tr key={p.id} style={{ borderBottom: "1px solid #f2f2f2" }}>
-                                    <td style={{ padding: 8 }}>{p.id}</td>
-                                    <td style={{ padding: 8 }}>{toFullName(p) || "—"}</td>
-                                    <td style={{ padding: 8 }}>{p.email || "—"}</td>
-                                    <td style={{ padding: 8 }}>{p.phone || "—"}</td>
-                                    <td style={{ padding: 8 }}>{p.gender || "—"}</td>
-                                    <td style={{ padding: 8 }}>
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                            <button onClick={() => onEdit(p)} className="btn btn--light btn--thin">Edit</button>
-                                            <button onClick={() => onSummary(p)} className="btn btn--light btn--thin" style={{ fontWeight: 600 }}>
-                                                AI Summary
-                                            </button>
-
-                                            {confirmId === p.id ? (
-                                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                                    <span style={{ fontSize: 12, color: "#555" }}>Confirm?</span>
-                                                    <button
-                                                        onClick={() => onConfirmDelete(p.id)}
-                                                        disabled={mDelete.isPending}
-                                                        className="btn btn--danger btn--thin"
-                                                    >
-                                                        {mDelete.isPending ? "Deleting…" : "Yes"}
-                                                    </button>
-                                                    <button onClick={onCancelDelete} className="btn btn--light btn--thin">Cancel</button>
-                                                </div>
-                                            ) : (
-                                                <button onClick={() => onDeleteClick(p)} className="btn btn--danger btn--thin">Delete</button>
-                                            )}
-                                        </div>
-                                    </td>
+                    <div className="table-wrap">
+                        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+                            <thead>
+                                <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+                                    <th style={{ padding: 8 }}>ID</th>
+                                    <th style={{ padding: 8 }}>Name</th>
+                                    <th style={{ padding: 8 }}>Email</th>
+                                    <th style={{ padding: 8 }}>Phone</th>
+                                    <th style={{ padding: 8 }}>Gender</th>
+                                    <th style={{ padding: 8, width: 420 }}>Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {rows.map((p) => (
+                                    <tr key={p.id} style={{ borderBottom: "1px solid #f2f2f2" }}>
+                                        <td style={{ padding: 8 }}>{p.id}</td>
+                                        <td style={{ padding: 8 }}>{toFullName(p) || "—"}</td>
+                                        <td style={{ padding: 8 }}>{p.email || "—"}</td>
+                                        <td style={{ padding: 8 }}>{p.phone || "—"}</td>
+                                        <td style={{ padding: 8 }}>{p.gender || "—"}</td>
+                                        <td style={{ padding: 8 }}>
+                                            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                                <button onClick={() => onEdit(p)} className="btn btn--light btn--thin">
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => onSummary(p)}
+                                                    className="btn btn--light btn--thin"
+                                                    style={{ fontWeight: 600 }}
+                                                >
+                                                    AI Summary
+                                                </button>
+
+                                                {confirmId === p.id ? (
+                                                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                                        <span style={{ fontSize: 12, color: "#555" }}>Confirm?</span>
+                                                        <button
+                                                            onClick={() => onConfirmDelete(p.id)}
+                                                            disabled={mDelete.isPending}
+                                                            className="btn btn--danger btn--thin"
+                                                        >
+                                                            {mDelete.isPending ? "Deleting…" : "Yes"}
+                                                        </button>
+                                                        <button onClick={onCancelDelete} className="btn btn--light btn--thin">
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button onClick={() => onDeleteClick(p)} className="btn btn--danger btn--thin">
+                                                        Delete
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
 
@@ -332,7 +383,7 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
                 </div>
             )}
 
-            {/* drawer-ish add/edit form */}
+            {/* add/edit form */}
             {mode !== "idle" && (
                 <form
                     onSubmit={onSubmit}
@@ -344,16 +395,24 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
                         background: "#fbfdff",
                     }}
                 >
-                    <h3 style={{ marginTop: 0 }}>{mode === "create" ? "Add Patient" : `Edit Patient #${editingId}`}</h3>
+                    <h3 style={{ marginTop: 0 }}>
+                        {mode === "create" ? "Add Patient" : `Edit Patient #${editingId}`}
+                    </h3>
 
-                    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
+                    <div
+                        style={{
+                            display: "grid",
+                            gap: 10,
+                            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                        }}
+                    >
                         <label style={{ display: "grid", gap: 6 }}>
                             <span>First name *</span>
                             <input
                                 value={form.firstName ?? ""}
                                 onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
                                 required
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             />
                         </label>
 
@@ -363,7 +422,7 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
                                 value={form.lastName ?? ""}
                                 onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
                                 required
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             />
                         </label>
 
@@ -373,7 +432,7 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
                                 type="email"
                                 value={form.email ?? ""}
                                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             />
                         </label>
 
@@ -382,7 +441,8 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
                             <input
                                 value={form.phone ?? ""}
                                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
+                                inputMode="tel"
                             />
                         </label>
 
@@ -391,7 +451,7 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
                             <select
                                 value={form.gender ?? "Male"}
                                 onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             >
                                 <option>Male</option>
                                 <option>Female</option>
@@ -408,14 +468,16 @@ gap:8px; user-select:none; font-weight:600; text-decoration:none;
                                 required
                                 min="1900-01-01"
                                 max={todayStr}
-                                style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                                style={styles.input}
                             />
                         </label>
                     </div>
 
-                    {formErr && <div style={{ color: "#b91c1c", marginTop: 8, fontSize: 13 }}>{formErr}</div>}
+                    {formErr && (
+                        <div style={{ color: "#b91c1c", marginTop: 8, fontSize: 13 }}>{formErr}</div>
+                    )}
 
-                    <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                    <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
                         <button
                             type="submit"
                             disabled={mCreate.isPending || mUpdate.isPending}
