@@ -28,10 +28,7 @@ export default function Chat() {
 
     // ---- history (cache per room) ----
     const listRef = useRef<HTMLDivElement | null>(null);
-    const {
-        data: history = [],
-        refetch,
-    } = useQuery<ChatMessage[], Error>({
+    const { data: history = [], refetch } = useQuery<ChatMessage[], Error>({
         queryKey: ["chat", room],
         queryFn: () => getRecent(room, 50),
         staleTime: 0,
@@ -57,18 +54,12 @@ export default function Chat() {
         async function start() {
             setConnState("connecting");
 
-            // stop old conn if any
             if (hubRef.current) {
-                try {
-                    await hubRef.current.stop();
-                } catch { }
+                try { await hubRef.current.stop(); } catch { }
                 hubRef.current = null;
             }
 
-            // wake the API (free plan cold starts)
-            try {
-                await warmApi();
-            } catch { }
+            try { await warmApi(); } catch { }
 
             const hub = makeHubConnection();
             hubRef.current = hub;
@@ -77,12 +68,9 @@ export default function Chat() {
             hub.onreconnected(() => setConnState("connected"));
             hub.onclose(() => setConnState("disconnected"));
 
-            // realtime: append into the correct room cache
             hub.on("newMessage", (payload: ChatMessage) => {
                 const r = (payload?.room ?? "lobby") as string;
-                qc.setQueryData<ChatMessage[]>(["chat", r], (prev) =>
-                    prev ? [...prev, payload] : [payload]
-                );
+                qc.setQueryData<ChatMessage[]>(["chat", r], (prev) => (prev ? [...prev, payload] : [payload]));
             });
 
             try {
@@ -90,13 +78,8 @@ export default function Chat() {
                 if (!mounted) return;
                 setConnState("connected");
 
-                // join the initial room
                 prevRoomRef.current = room;
-                try {
-                    await hub.invoke("JoinRoom", room);
-                } catch { }
-
-                // fetch history for initial room
+                try { await hub.invoke("JoinRoom", room); } catch { }
                 await refetch();
             } catch {
                 if (mounted) setConnState("disconnected");
@@ -117,7 +100,7 @@ export default function Chat() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // mount once
 
-    // ---- on room change: leave previous, join new, refetch history ----
+    // ---- on room change ----
     useEffect(() => {
         const run = async () => {
             const hub = hubRef.current;
@@ -125,9 +108,7 @@ export default function Chat() {
 
             const prev = prevRoomRef.current;
             if (prev && prev !== room) {
-                try {
-                    await hub.invoke("LeaveRoom", prev);
-                } catch { }
+                try { await hub.invoke("LeaveRoom", prev); } catch { }
             }
             try {
                 await hub.invoke("JoinRoom", room);
@@ -138,18 +119,14 @@ export default function Chat() {
         run();
     }, [room, refetch]);
 
-    // ---- send message via HTTP (server broadcasts to SignalR) ----
+    // ---- send message via HTTP ----
     const mSend = useMutation({
         mutationFn: (payload: ChatCreateDto) => sendMessageHttp(payload),
         onSuccess: async (saved) => {
             const r = saved.room ?? room;
-            qc.setQueryData<ChatMessage[]>(["chat", r], (prev) =>
-                prev ? [...prev, saved] : [saved]
-            );
+            qc.setQueryData<ChatMessage[]>(["chat", r], (prev) => (prev ? [...prev, saved] : [saved]));
             setText("");
-            setTimeout(() => {
-                refetch();
-            }, 50);
+            setTimeout(() => { refetch(); }, 50);
         },
     });
 
@@ -169,20 +146,58 @@ export default function Chat() {
 
     return (
         <section>
+            {/* Scoped CSS to prevent global input rules from breaking the composer */}
+            <style>{`
+@media (max-width: 700px){
+.chat-grid { grid-template-columns: 1fr; }
+}
+
+/* Reset any global input styles just for the composer field */
+.chat-composer input[type="text"]{
+appearance: textfield;
+-webkit-appearance: none;
+-moz-appearance: none;
+box-sizing: border-box;
+width: 100%;
+height: 44px; /* consistent height */
+min-height: 44px; /* override global min-heights */
+padding: 12px;
+border: 1px solid #ddd !important;
+border-radius: 8px;
+background: #fff !important;
+font-size: 16px; /* avoid mobile zoom */
+line-height: 20px;
+}
+
+.chat-composer {
+display: flex;
+gap: 8px;
+margin-top: 10px;
+}
+
+.chat-send {
+padding: 10px 14px;
+border-radius: 8px;
+border: 0;
+color: #fff;
+font-weight: 600;
+min-width: 90px;
+}
+
+@media (max-width: 480px){
+.chat-composer { flex-direction: column; }
+.chat-send { width: 100%; min-width: 0; }
+}
+`}</style>
+
             <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 Chat{" "}
                 <span
                     style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        display: "inline-block",
+                        width: 8, height: 8, borderRadius: "50%", display: "inline-block",
                         background:
-                            connState === "connected"
-                                ? "#2e7d32"
-                                : connState === "reconnecting"
-                                    ? "#f9a825"
-                                    : "#c62828",
+                            connState === "connected" ? "#2e7d32" :
+                                connState === "reconnecting" ? "#f9a825" : "#c62828",
                     }}
                     title={connState}
                 />
@@ -191,12 +206,8 @@ export default function Chat() {
 
             {/* top inputs */}
             <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr",
-                    gap: 10,
-                    marginBottom: 12,
-                }}
+                className="chat-grid"
+                style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}
             >
                 <label style={{ display: "grid", gap: 6 }}>
                     <span>Room</span>
@@ -252,8 +263,7 @@ export default function Chat() {
                     messages.map((m) => (
                         <div key={m.id}>
                             <div style={{ fontSize: 12, color: "#666" }}>
-                                <strong>{m.sender || "unknown"}</strong> ·{" "}
-                                {new Date(m.sentAt).toLocaleString()}
+                                <strong>{m.sender || "unknown"}</strong> · {new Date(m.sentAt).toLocaleString()}
                                 {m.patientId ? ` · patient:${m.patientId}` : ""}
                             </div>
                             <div>{m.text}</div>
@@ -263,8 +273,9 @@ export default function Chat() {
             </div>
 
             {/* composer */}
-            <form onSubmit={onSubmit} style={{ marginTop: 10, display: "flex", gap: 8 }}>
+            <form onSubmit={onSubmit} className="chat-composer">
                 <input
+                    type="text"
                     placeholder="Type a message…"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
@@ -274,27 +285,12 @@ export default function Chat() {
                             onSubmit(e);
                         }
                     }}
-                    style={{
-                        flex: 1,
-                        padding: 12,
-                        borderRadius: 8,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                    }}
                 />
                 <button
                     type="submit"
                     disabled={!canSend}
-                    style={{
-                        padding: "10px 14px",
-                        borderRadius: 8,
-                        border: 0,
-                        background: canSend ? "#1976d2" : "#b0bec5",
-                        color: "#fff",
-                        fontWeight: 600,
-                        minWidth: 90,
-                        cursor: canSend ? "pointer" : "not-allowed",
-                    }}
+                    className="chat-send"
+                    style={{ background: canSend ? "#1976d2" : "#b0bec5", cursor: canSend ? "pointer" : "not-allowed" }}
                 >
                     Send
                 </button>

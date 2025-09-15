@@ -101,11 +101,36 @@ export default function AiSummary() {
 
     return (
         <section>
+            {/* --- FIX: ensure checkbox looks like a checkbox on all devices/browsers --- */}
             <style>{`
-/* small helper for stacking on tiny screens */
+/* stack buttons on tiny screens */
 @media (max-width: 600px){
 .stack-sm { flex-direction: column; align-items: stretch; }
 .stack-sm > * { width: 100% }
+}
+
+/* Scope styles to this form only */
+.ai-summary-form input[type="checkbox"]{
+/* undo any global input styles that make it look like a text field */
+appearance: auto;
+-webkit-appearance: auto;
+-moz-appearance: auto;
+border: none !important;
+background: transparent !important;
+padding: 0 !important;
+min-height: initial !important;
+width: 20px;
+height: 20px;
+accent-color: #1976d2;
+}
+
+/* nicely align checkbox and label text */
+.ai-summary-form .checkline{
+display: flex;
+align-items: center;
+gap: 10px;
+margin-top: 12px;
+line-height: 1.2;
 }
 `}</style>
 
@@ -116,10 +141,7 @@ export default function AiSummary() {
                 <button
                     type="button"
                     onClick={() => setMode("summary")}
-                    style={{
-                        ...styles.btnBase,
-                        ...(mode === "summary" ? styles.btnOutlineActive : styles.btnOutline),
-                    }}
+                    style={{ ...styles.btnBase, ...(mode === "summary" ? styles.btnOutlineActive : styles.btnOutline) }}
                     aria-pressed={mode === "summary"}
                 >
                     Case Summary
@@ -127,10 +149,7 @@ export default function AiSummary() {
                 <button
                     type="button"
                     onClick={() => setMode("generic")}
-                    style={{
-                        ...styles.btnBase,
-                        ...(mode === "generic" ? styles.btnOutlineActive : styles.btnOutline),
-                    }}
+                    style={{ ...styles.btnBase, ...(mode === "generic" ? styles.btnOutlineActive : styles.btnOutline) }}
                     aria-pressed={mode === "generic"}
                 >
                     Generic Ask
@@ -140,6 +159,7 @@ export default function AiSummary() {
             {/* Form */}
             <form
                 onSubmit={onSubmit}
+                className="ai-summary-form"
                 style={{ padding: 16, border: "1px solid #eee", borderRadius: 8, background: "#fff" }}
             >
                 {mode === "generic" ? (
@@ -165,9 +185,7 @@ export default function AiSummary() {
                                 inputMode="numeric"
                                 placeholder="Patient Id (optional)"
                                 value={patientId}
-                                onChange={(e) =>
-                                    setPatientId(e.target.value === "" ? "" : Number(e.target.value))
-                                }
+                                onChange={(e) => setPatientId(e.target.value === "" ? "" : Number(e.target.value))}
                                 style={styles.input}
                                 aria-label="Patient Id (optional)"
                             />
@@ -186,9 +204,7 @@ export default function AiSummary() {
                                 step="0.1"
                                 placeholder="Temperature °C (optional)"
                                 value={temperatureC}
-                                onChange={(e) =>
-                                    setTemperatureC(e.target.value === "" ? "" : Number(e.target.value))
-                                }
+                                onChange={(e) => setTemperatureC(e.target.value === "" ? "" : Number(e.target.value))}
                                 style={styles.input}
                                 aria-label="Temperature in Celsius (optional)"
                             />
@@ -212,22 +228,13 @@ export default function AiSummary() {
                             />
                         </div>
 
-                        <label
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 10,
-                                marginTop: 12,
-                                lineHeight: 1.2,
-                            }}
-                        >
+                        <label className="checkline">
                             <input
                                 type="checkbox"
                                 checked={dischargedStable}
                                 onChange={(e) => setDischargedStable(e.target.checked)}
-                                style={{ width: 20, height: 20 }}
                             />
-                            Discharged stable
+                            <span>Discharged stable</span>
                         </label>
                     </>
                 )}
